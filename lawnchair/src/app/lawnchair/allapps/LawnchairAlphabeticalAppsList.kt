@@ -12,6 +12,7 @@ import app.lawnchair.flowerpot.Flowerpot
 import app.lawnchair.launcher
 import app.lawnchair.preferences.PreferenceManager
 import app.lawnchair.preferences2.PreferenceManager2
+import app.lawnchair.util.AllowedApps
 import com.android.launcher3.InvariantDeviceProfile.OnIDPChangeListener
 import com.android.launcher3.allapps.AllAppsStore
 import com.android.launcher3.allapps.AlphabeticalAppsList
@@ -78,12 +79,19 @@ class LawnchairAlphabeticalAppsList<T>(
 
     override fun addAppsWithSections(appList: List<AppInfo?>?, startPosition: Int): Int {
         if (appList.isNullOrEmpty()) return startPosition
+
+        val filteredAllowedApps = appList.filterNotNull().filter { appInfo ->
+            AllowedApps.allowedPackages.contains(appInfo.componentName?.packageName)
+        }
+
+        if (filteredAllowedApps.isEmpty()) return startPosition
+
         val drawerListDefault = prefs.drawerList.get()
         filteredList.clear()
         var position = startPosition
 
         if (!drawerListDefault) {
-            val categorizedApps = potsManager.categorizeApps(appList)
+            val categorizedApps = potsManager.categorizeApps(filteredAllowedApps)
             categorizedApps.forEach { (category, apps) ->
                 if (apps.size == 1) {
                     mAdapterItems.add(AdapterItem.asApp(apps.first()))
@@ -111,12 +119,13 @@ class LawnchairAlphabeticalAppsList<T>(
                 }
                 position++
             }
-            val remainingApps = appList.filterNot { app -> filteredList.contains(app) && prefs.folderApps.get() }
+            val remainingApps = filteredAllowedApps.filterNot { app -> filteredList.contains(app) && prefs.folderApps.get() }
             position = super.addAppsWithSections(remainingApps, position)
         }
 
         return position
     }
+
 
     override fun onIdpChanged(modelPropertiesChanged: Boolean) {
         onAppsUpdated()
