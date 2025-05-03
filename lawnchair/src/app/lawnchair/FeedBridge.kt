@@ -36,7 +36,7 @@ import com.kieronquinn.app.smartspacer.sdk.SmartspacerConstants
 
 class FeedBridge(private val context: Context) {
 
-    private val shouldUseFeed = context.applicationInfo.flags and (FLAG_DEBUGGABLE or FLAG_SYSTEM) == 0
+    private val shouldUseFeed = false
     private val prefs by lazy { PreferenceManager.getInstance(context) }
     private val bridgePackages by lazy {
         listOf(
@@ -176,7 +176,7 @@ class FeedBridge(private val context: Context) {
             .filter { getInstance(context).CustomBridgeInfo(it.packageName).isSigned() }
 
         @JvmStatic
-        fun useBridge(context: Context) = getInstance(context).let { it.shouldUseFeed || it.customBridgeAvailable() }
+        fun useBridge(context: Context) = false
     }
 
     init {

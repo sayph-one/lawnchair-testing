@@ -147,9 +147,7 @@ class OverlayCallbackImpl(private val mLauncher: LawnchairLauncher) :
         private const val PREF_PERSIST_FLAGS = "pref_persistent_flags"
 
         fun minusOneAvailable(context: Context): Boolean {
-            return FeedBridge.useBridge(context) ||
-                context.applicationInfo.flags and
-                (ApplicationInfo.FLAG_DEBUGGABLE or ApplicationInfo.FLAG_SYSTEM) != 0
+            return false
         }
     }
 }
