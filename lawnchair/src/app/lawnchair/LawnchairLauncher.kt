@@ -116,7 +116,7 @@ class LawnchairLauncher : QuickstepLauncher() {
 
     private fun setWallpaperOnce() {
         val wallpaperManager = WallpaperManager.getInstance(this)
-        val bitmap = BitmapFactory.decodeResource(this.resources, R.drawable.home_wallpaper)
+        val bitmap = BitmapFactory.decodeResource(this.resources, R.drawable.default_wallpaper)
         wallpaperManager.setBitmap(bitmap)
     }
 
