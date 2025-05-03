@@ -39,6 +39,7 @@ import androidx.annotation.VisibleForTesting;
 
 import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.LauncherAppState;
+import com.android.launcher3.LauncherSettings;
 import com.android.launcher3.LauncherSettings.Favorites;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.Workspace;
@@ -122,6 +123,30 @@ public class LoaderCursor extends CursorWrapper {
     public int itemType;
     public int restoreFlag;
     private PreferenceManager2 preferenceManager2;
+
+    @Nullable
+    public Intent tryGetIntent() {
+        int intentIndex = getColumnIndex(LauncherSettings.Favorites.INTENT);
+        if (intentIndex == -1) {
+            return null;
+        }
+        String intentString = getString(intentIndex);
+        if (intentString == null) return null;
+        try {
+            return Intent.parseUri(intentString, 0);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Nullable
+    public String getIntentComponentPackage() {
+        Intent intent = tryGetIntent();
+        if (intent != null && intent.getComponent() != null) {
+            return intent.getComponent().getPackageName();
+        }
+        return null;
+    }
 
     public LoaderCursor(Cursor cursor, LauncherAppState app, UserManagerState userManagerState,
             PackageManagerHelper pmHelper,

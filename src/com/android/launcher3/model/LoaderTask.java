@@ -33,6 +33,8 @@ import static com.android.launcher3.model.ModelUtils.filterCurrentWorkspaceItems
 import static com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_INSTALL_SESSION_ACTIVE;
 import static com.android.launcher3.util.Executors.MODEL_EXECUTOR;
 import static com.android.launcher3.util.PackageManagerHelper.hasShortcutsPermission;
+import com.android.launcher3.LauncherSettings;
+
 
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.Context;
@@ -158,7 +160,7 @@ public class LoaderTask implements Runnable {
     private final Set<PackageUserKey> mPendingPackages = new HashSet<>();
     private boolean mItemsDeleted = false;
     private String mDbName;
-
+    
     public LoaderTask(@NonNull LauncherAppState app, AllAppsList bgAllAppsList, BgDataModel bgModel,
             ModelDelegate modelDelegate, @NonNull BaseLauncherBinder launcherBinder) {
         this(app, bgAllAppsList, bgModel, modelDelegate, launcherBinder, new UserManagerState());
@@ -473,6 +475,11 @@ public class LoaderTask implements Runnable {
                         allDeepShortcuts);
 
                 while (!mStopped && c.moveToNext()) {
+                    String packageName = c.getIntentComponentPackage();
+                    if (packageName != null && !app.lawnchair.util.AllowedApps.INSTANCE.getAllowedPackages().contains(packageName)) {
+                        // Skip loading this item if its package isn't allowed
+                        continue;
+                    }
                     itemProcessor.processItem();
                 }
                 tryLoadWorkspaceIconsInBulk(iconRequestInfos);
