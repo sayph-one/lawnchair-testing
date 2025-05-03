@@ -18,8 +18,10 @@ package app.lawnchair
 
 import android.animation.AnimatorSet
 import android.app.ActivityOptions
+import android.app.WallpaperManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
@@ -111,6 +113,13 @@ class LawnchairLauncher : QuickstepLauncher() {
             }
         }
     }
+
+    private fun setWallpaperOnce() {
+        val wallpaperManager = WallpaperManager.getInstance(this)
+        val bitmap = BitmapFactory.decodeResource(this.resources, R.drawable.home_wallpaper)
+        wallpaperManager.setBitmap(bitmap)
+    }
+
     private val rememberPositionStateListener = object : StateManager.StateListener<LauncherState> {
         override fun onStateTransitionStart(toState: LauncherState) {
             if (toState is AllAppsState) {
@@ -152,6 +161,8 @@ class LawnchairLauncher : QuickstepLauncher() {
         }
         layoutInflater.factory2 = LawnchairLayoutFactory(this)
         super.onCreate(savedInstanceState)
+
+        setWallpaperOnce()
 
         prefs.launcherTheme.subscribeChanges(this, ::updateTheme)
         prefs.feedProvider.subscribeChanges(this, defaultOverlay::reconnect)
