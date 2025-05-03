@@ -575,9 +575,9 @@ public class DeviceProfile {
         HotseatMode hotseatMode = PreferenceExtensionsKt.firstBlocking(preferenceManager2.getHotseatMode());
         boolean isQsbEnable = hotseatMode.getLayoutResourceId() != R.layout.empty_view;
 
-        hotseatQsbHeight = isQsbEnable ? res.getDimensionPixelSize(R.dimen.qsb_widget_height) : 0;
+        hotseatQsbHeight =  0;
         hotseatQsbShadowHeight = res.getDimensionPixelSize(R.dimen.qsb_shadow_height);
-        hotseatQsbVisualHeight = isQsbEnable ? hotseatQsbHeight - 2 * hotseatQsbShadowHeight : 0;
+        hotseatQsbVisualHeight = 0;
 
         // Whether QSB might be inline in appropriate orientation (e.g. landscape).
         boolean canQsbInline = (isTwoPanels ? inv.inlineQsb[INDEX_TWO_PANEL_PORTRAIT]
