@@ -138,6 +138,7 @@ sealed class QsbSearchProvider(
             Startpage,
             Mull,
             Kagi,
+            None,
         )
 
         /**

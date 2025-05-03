@@ -74,6 +74,14 @@ class LawnQsbLayout(context: Context, attrs: AttributeSet?) : FrameLayout(contex
         preferenceManager = PreferenceManager.getInstance(context)
         preferenceManager2 = PreferenceManager2.getInstance(context)
 
+        val searchProvider = getSearchProvider(context, preferenceManager2)
+
+        if (searchProvider.id == "none") {
+            removeAllViews() // clean up child views
+            visibility = GONE  // also ensure it's not measured/layout
+            return
+        }
+
         preferenceManager2.strokeColorStyle.onEach(launchIn = coroutineScope) {
             strokeColor = it
             setUpBackground()
@@ -82,7 +90,6 @@ class LawnQsbLayout(context: Context, attrs: AttributeSet?) : FrameLayout(contex
         setUpBackground()
         clipIconRipples()
 
-        val searchProvider = getSearchProvider(context, preferenceManager2)
         val isGoogle = searchProvider == Google || searchProvider == GoogleGo || searchProvider == PixelSearch
         val supportsLens = searchProvider == Google || searchProvider == PixelSearch
 
@@ -241,17 +248,9 @@ class LawnQsbLayout(context: Context, attrs: AttributeSet?) : FrameLayout(contex
             context: Context,
             preferenceManager: PreferenceManager2,
         ): QsbSearchProvider {
-            val provider = preferenceManager.hotseatQsbProvider.firstBlocking()
-
-            return if (provider == AppSearch ||
-                resolveIntent(context, provider.createSearchIntent()) ||
-                resolveIntent(context, provider.createWebsiteIntent())
-            ) {
-                provider
-            } else {
-                AppSearch
-            }
+            return QsbSearchProvider.fromId("none")
         }
+
 
         fun resolveIntent(context: Context, intent: Intent): Boolean = context.packageManager.resolveActivity(intent, 0) != null
 
