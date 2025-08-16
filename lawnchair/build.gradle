@@ -1,0 +1,38 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.android.launcher3'
+    compileSdkVersion 34
+
+    defaultConfig {
+        applicationId "com.android.launcher3"
+        minSdkVersion 26
+        targetSdkVersion 34
+        versionCode 10
+        versionName "15.Dev.(74d7440)"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("/Users/owainrowley/AndroidStudioProjects/my-release-key.jks")
+            storePassword "casmud-weChiq-5higjy"
+            keyAlias "lawnchair"
+            keyPassword "casmud-weChiq-5higjy"
+
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+}

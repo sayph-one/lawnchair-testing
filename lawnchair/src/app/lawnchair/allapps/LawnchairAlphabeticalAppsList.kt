@@ -81,7 +81,9 @@ class LawnchairAlphabeticalAppsList<T>(
         if (appList.isNullOrEmpty()) return startPosition
 
         val filteredAllowedApps = appList.filterNotNull().filter { appInfo ->
-            AllowedApps.allowedPackages.contains(appInfo.componentName?.packageName)
+            appInfo.componentName?.packageName?.let { packageName ->
+                AllowedApps.isAllowed(packageName)
+            } ?: false
         }
 
         if (filteredAllowedApps.isEmpty()) return startPosition

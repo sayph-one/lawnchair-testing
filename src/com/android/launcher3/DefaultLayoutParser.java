@@ -55,6 +55,7 @@ public class DefaultLayoutParser extends AutoInstallsLayout {
     public DefaultLayoutParser(Context context, LauncherWidgetHolder appWidgetHolder,
             LayoutParserCallback callback, Resources sourceRes, int layoutId) {
         super(context, appWidgetHolder, callback, sourceRes, layoutId, TAG_FAVORITES);
+        Log.d("DefaultLayoutParser", "💡 Loading layout: " + context.getResources().getResourceEntryName(layoutId));
     }
 
     @Override

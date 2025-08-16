@@ -24,6 +24,8 @@ import static android.content.pm.ActivityInfo.CONFIG_UI_MODE;
 import static android.view.WindowInsetsAnimation.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE;
 import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
 
+import android.Manifest;
+
 import static com.android.app.animation.Interpolators.EMPHASIZED;
 import static com.android.launcher3.AbstractFloatingView.TYPE_FOLDER;
 import static com.android.launcher3.AbstractFloatingView.TYPE_ICON_SURFACE;
@@ -117,17 +119,21 @@ import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetManager;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentCallbacks2;
+import android.content.ContentProviderOperation;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
@@ -135,6 +141,7 @@ import android.os.StrictMode;
 import android.os.SystemClock;
 import android.os.Trace;
 import android.os.UserHandle;
+import android.provider.ContactsContract;
 import android.text.TextUtils;
 import android.text.method.TextKeyListener;
 import android.util.AttributeSet;
@@ -165,6 +172,8 @@ import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.annotation.UiThread;
 import androidx.annotation.VisibleForTesting;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.os.BuildCompat;
 import androidx.window.embedding.RuleController;
 
@@ -296,6 +305,8 @@ public class Launcher extends StatefulActivity<LauncherState>
         implements Callbacks, InvariantDeviceProfile.OnIDPChangeListener,
         PluginListener<LauncherOverlayPlugin> {
     public static final String TAG = "Launcher";
+
+    private static final int REQUEST_CONTACT_PERMISSIONS = 1001;
 
     public static final ActivityTracker<Launcher> ACTIVITY_TRACKER = new ActivityTracker<>();
 
@@ -514,6 +525,9 @@ public class Launcher extends StatefulActivity<LauncherState>
         }
 
         super.onCreate(savedInstanceState);
+
+        checkAndRequestContactPermissions();
+        
 
         LauncherAppState app = LauncherAppState.getInstance(this);
         app.setLauncher(this);
@@ -2151,6 +2165,106 @@ public class Launcher extends StatefulActivity<LauncherState>
         return true;
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CONTACT_PERMISSIONS) {
+            boolean granted = true;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    granted = false;
+                    break;
+                }
+            }
+
+            if (granted) {
+                maybeAddContact();
+            } else {
+                Toast.makeText(this, "Contact permission denied", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void checkAndRequestContactPermissions() {
+        int write = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CONTACTS);
+        int read = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS);
+
+        Log.d("ContactsCheck", "WRITE_CONTACTS = " + write);
+        Log.d("ContactsCheck", "READ_CONTACTS = " + read);
+
+        if (write != PackageManager.PERMISSION_GRANTED || read != PackageManager.PERMISSION_GRANTED) {
+            String[] permissions = new String[] {
+                Manifest.permission.WRITE_CONTACTS,
+                Manifest.permission.READ_CONTACTS
+            };
+            ActivityCompat.requestPermissions(this, permissions, REQUEST_CONTACT_PERMISSIONS);
+        } else {
+            Log.d("ContactsCheck", "Permissions already granted — calling maybeAddContact()");
+            maybeAddContact();
+        }
+    }
+
+    private void maybeAddContact() {
+        Log.d("ContactsCheck", "maybeAddContact called");
+
+        String name = "Owain Rowley";
+        String phone = "+447799655090";
+
+        if (!contactExists(this, phone)) {
+            Log.d("ContactsCheck", "Contact not found, adding now");
+            addContact(this, name, phone);
+        } else {
+            Log.d("ContactsCheck", "Contact already exists");
+        }
+    }
+
+    private boolean contactExists(Context context, String phoneNumber) {
+        Uri lookupUri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber));
+        Cursor cursor = null;
+        boolean exists = false;
+
+        try {
+            cursor = context.getContentResolver().query(lookupUri, null, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                exists = true;
+            }
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+
+        return exists;
+    }
+
+    private void addContact(Context context, String name, String phone) {
+        ArrayList<ContentProviderOperation> ops = new ArrayList<ContentProviderOperation>();
+
+        ops.add(ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
+            .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
+            .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
+            .build());
+
+        ops.add(ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+            .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, name)
+            .build());
+
+        ops.add(ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+            .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, phone)
+            .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+            .build());
+
+        try {
+            context.getContentResolver().applyBatch(ContactsContract.AUTHORITY, ops);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         TestLogging.recordKeyEvent(TestProtocol.SEQUENCE_MAIN, "Key event", event);

@@ -283,7 +283,33 @@ public class AlphabeticalAppsList<T extends Context & ActivityContext> implement
         // layout) from the
         // ordered set of sections
         if (hasSearchResults()) {
-            mAdapterItems.addAll(mSearchResults);
+            android.util.Log.d("SearchFilter", "=== FILTERING SEARCH RESULTS ===");
+            // Filter search results to only include allowed apps
+            for (AdapterItem item : mSearchResults) {
+                if (item.itemInfo instanceof AppInfo) {
+                    AppInfo appInfo = (AppInfo) item.itemInfo;
+                    // Add null checks for componentName and packageName
+                    if (appInfo.componentName != null) {
+                        String packageName = appInfo.componentName.getPackageName();
+                        if (packageName != null) {
+                            boolean isAllowed = app.lawnchair.util.AllowedApps.INSTANCE.isAllowed(packageName);
+                            android.util.Log.d("SearchFilter", "App: " + appInfo.title + ", Package: " + packageName + ", Allowed: " + isAllowed);
+                            if (isAllowed) {
+                                mAdapterItems.add(item);
+                            }
+                        } else {
+                            android.util.Log.d("SearchFilter", "App: " + appInfo.title + " has null package name, skipping");
+                        }
+                    } else {
+                        android.util.Log.d("SearchFilter", "App: " + appInfo.title + " has null componentName, skipping");
+                    }
+                } else {
+                    // Keep non-app items (like empty search message)
+                    android.util.Log.d("SearchFilter", "Non-app item: " + item.getClass().getSimpleName() + ", keeping");
+                    mAdapterItems.add(item);
+                }
+            }
+            android.util.Log.d("SearchFilter", "=== FINAL RESULTS === Showing: " + mAdapterItems.size() + " items");
         } else {
             int position = 0;
             boolean addApps = true;

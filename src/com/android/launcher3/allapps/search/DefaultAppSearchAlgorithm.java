@@ -86,22 +86,35 @@ public class DefaultAppSearchAlgorithm implements SearchAlgorithm<AdapterItem> {
      */
     @AnyThread
     private static ArrayList<AdapterItem> getTitleMatchResult(List<AppInfo> apps, String query) {
-        // Do an intersection of the words in the query and each title, and filter out
-        // all the
-        // apps that don't match all of the words in the query.
         final String queryTextLower = query.toLowerCase();
         final ArrayList<AdapterItem> result = new ArrayList<>();
         StringMatcherUtility.StringMatcher matcher = StringMatcherUtility.StringMatcher.getInstance();
+
+        // ADD THIS LINE FOR DEBUGGING
+        android.util.Log.d("SearchFilter", "=== SEARCH DEBUG === Query: " + query + ", Total apps: " + apps.size());
 
         int resultCount = 0;
         int total = apps.size();
         for (int i = 0; i < total && resultCount < MAX_RESULTS_COUNT; i++) {
             AppInfo info = apps.get(i);
+
+            String packageName = info.componentName.getPackageName();
+            boolean isAllowed = app.lawnchair.util.AllowedApps.INSTANCE.isAllowed(packageName);
+            
+            android.util.Log.d("SearchFilter", "App: " + info.title + ", Package: " + packageName + ", Allowed: " + isAllowed);
+
+            if (!isAllowed) {
+                continue;
+            }
+
             if (StringMatcherUtility.matches(queryTextLower, info.title.toString(), matcher)) {
                 result.add(AdapterItem.asApp(info));
                 resultCount++;
             }
         }
+        
+        android.util.Log.d("SearchFilter", "=== SEARCH RESULTS === Found " + result.size() + " allowed apps");
+
         return result;
     }
 }

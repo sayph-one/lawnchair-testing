@@ -1,13 +1,22 @@
 package app.lawnchair.util
 
 object AllowedApps {
-    val allowedPackages = listOf(
-        "com.android.chrome",
-        "com.whatsapp",
-        "com.example.sms",
-        "com.google.android.youtube"
+    private val allowedBasePackages = listOf(
+        "com.simplemobiletools.dialer",
+        "com.simplemobiletools.smsmessenger"
+        // Add more base package names here
     )
+
+    fun isAllowed(packageName: String): Boolean {
+        return allowedBasePackages.any { basePackage ->
+            // Exact match
+            packageName == basePackage ||
+                // Or starts with base package followed by dot and any alphanumeric suffix
+                (packageName.startsWith("$basePackage.") &&
+                    packageName.substring(basePackage.length + 1).matches(Regex("^[a-zA-Z0-9._-]+$")))
+        }
+    }
+
+    // Legacy method for LoaderTask.java compatibility
+    fun getAllowedPackages(): List<String> = allowedBasePackages
 }
-
-
-
