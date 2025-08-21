@@ -358,6 +358,15 @@ public class WidgetsModel {
 
         @Override
         public boolean test(WidgetItem item) {
+            String packageName = item.componentName.getPackageName();
+            if (!app.lawnchair.util.AllowedApps.INSTANCE.isAllowed(packageName)) {
+                if (DEBUG) {
+                    Log.d(TAG, String.format("Widget %s is not in AllowedApps list and will be filtered out.",
+                        item.componentName));
+                }
+                return false;
+            }
+            
             if (item.widgetInfo != null) {
                 if ((item.widgetInfo.getWidgetFeatures() & WIDGET_FEATURE_HIDE_FROM_PICKER) != 0) {
                     boolean isSelf = item.componentName.getPackageName().equals(BuildConfig.APPLICATION_ID);
@@ -371,8 +380,8 @@ public class WidgetsModel {
                 if (!item.widgetInfo.isMinSizeFulfilled()) {
                     if (DEBUG) {
                         Log.d(TAG, String.format(
-                                "Widget %s : can't fit on this device with a grid size: %dx%d",
-                                item.componentName, mIdp.numColumns, mIdp.numRows));
+                            "Widget %s : can't fit on this device with a grid size: %dx%d",
+                            item.componentName, mIdp.numColumns, mIdp.numRows));
                     }
                     return false;
                 }
@@ -380,7 +389,7 @@ public class WidgetsModel {
             if (!mAppFilter.shouldShowApp(item.componentName)) {
                 if (DEBUG) {
                     Log.d(TAG, String.format("%s is filtered and not added to the widget tray.",
-                            item.componentName));
+                        item.componentName));
                 }
                 return false;
             }
