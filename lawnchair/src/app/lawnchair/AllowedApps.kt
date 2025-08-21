@@ -3,8 +3,11 @@ package app.lawnchair.util
 object AllowedApps {
     private val allowedBasePackages = listOf(
         "com.simplemobiletools.dialer",
-        "com.simplemobiletools.smsmessenger"
-        // Add more base package names here
+        "com.simplemobiletools.smsmessenger",
+        "com.android.camera2",
+        "com.google.android.deskclock",
+        ""
+
     )
 
     fun isAllowed(packageName: String): Boolean {
