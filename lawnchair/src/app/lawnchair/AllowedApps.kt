@@ -5,9 +5,7 @@ object AllowedApps {
         "com.simplemobiletools.dialer",
         "com.simplemobiletools.smsmessenger",
         "com.android.camera2",
-        "com.google.android.deskclock",
-        ""
-
+        "com.google.android.deskclock"
     )
 
     fun isAllowed(packageName: String): Boolean {

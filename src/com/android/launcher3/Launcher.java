@@ -2177,9 +2177,7 @@ public class Launcher extends StatefulActivity<LauncherState>
                 }
             }
 
-            if (granted) {
-                maybeAddContact();
-            } else {
+            if (!granted) {
                 Toast.makeText(this, "Contact permission denied", Toast.LENGTH_SHORT).show();
             }
         }
@@ -2193,28 +2191,13 @@ public class Launcher extends StatefulActivity<LauncherState>
         Log.d("ContactsCheck", "READ_CONTACTS = " + read);
 
         if (write != PackageManager.PERMISSION_GRANTED || read != PackageManager.PERMISSION_GRANTED) {
-            String[] permissions = new String[] {
+            String[] permissions = new String[]{
                 Manifest.permission.WRITE_CONTACTS,
                 Manifest.permission.READ_CONTACTS
             };
             ActivityCompat.requestPermissions(this, permissions, REQUEST_CONTACT_PERMISSIONS);
         } else {
             Log.d("ContactsCheck", "Permissions already granted — calling maybeAddContact()");
-            maybeAddContact();
-        }
-    }
-
-    private void maybeAddContact() {
-        Log.d("ContactsCheck", "maybeAddContact called");
-
-        String name = "Owain Rowley";
-        String phone = "+447799655090";
-
-        if (!contactExists(this, phone)) {
-            Log.d("ContactsCheck", "Contact not found, adding now");
-            addContact(this, name, phone);
-        } else {
-            Log.d("ContactsCheck", "Contact already exists");
         }
     }
 
