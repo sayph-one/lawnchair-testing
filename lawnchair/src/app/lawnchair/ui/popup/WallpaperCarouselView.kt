@@ -154,7 +154,7 @@ class WallpaperCarouselView @JvmOverloads constructor(
                     BitmapFactory.decodeFile(wallpaper.imagePath),
                     null,
                     true,
-                    WallpaperManager.FLAG_SYSTEM,
+                    WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK,
                 )
                 viewModel.updateWallpaperRank(wallpaper)
             } catch (e: Exception) {

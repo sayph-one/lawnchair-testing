@@ -11,9 +11,9 @@
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
-      "versionCode": 1500020107,
-      "versionName": "15.Dev.(e22be7b)",
-      "outputFile": "Lawnchair.15.Dev.(e22be7b).github.release.apk"
+      "versionCode": 1500020108,
+      "versionName": "15.Dev.(7dc791f)",
+      "outputFile": "Lawnchair.15.Dev.(7dc791f).github.release.apk"
     }
   ],
   "elementType": "File",
@@ -22,14 +22,14 @@
       "minApi": 28,
       "maxApi": 30,
       "baselineProfiles": [
-        "baselineProfiles/1/Lawnchair.15.Dev.(e22be7b).github.release.dm"
+        "baselineProfiles/1/Lawnchair.15.Dev.(7dc791f).github.release.dm"
       ]
     },
     {
       "minApi": 31,
       "maxApi": 2147483647,
       "baselineProfiles": [
-        "baselineProfiles/0/Lawnchair.15.Dev.(e22be7b).github.release.dm"
+        "baselineProfiles/0/Lawnchair.15.Dev.(7dc791f).github.release.dm"
       ]
     }
   ],
