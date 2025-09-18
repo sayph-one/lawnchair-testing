@@ -7,7 +7,10 @@ object AllowedApps {
         "com.sec.android.gallery3d",
         "com.sec.android.app.camera",
         "com.sec.factory.camera",
-        "com.samsung.android.da.daagent"
+        "com.samsung.android.da.daagent",
+        "com.sec.android.app.clockpackage.ClockPackage",
+        "com.sec.android.app.popupcalculator",
+        "com.sec.android.app.clockpackage"
     )
 
     fun isAllowed(packageName: String): Boolean {

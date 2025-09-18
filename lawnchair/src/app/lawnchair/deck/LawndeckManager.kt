@@ -5,6 +5,7 @@ import android.util.Log
 import app.lawnchair.LawnchairLauncher
 import app.lawnchair.launcher
 import app.lawnchair.launcherNullable
+import app.lawnchair.util.AllowedApps
 import app.lawnchair.util.restartLauncher
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.model.ItemInstallQueue
@@ -23,11 +24,8 @@ class LawndeckManager(private val context: Context) {
 
     suspend fun enableLawndeck() = withContext(Dispatchers.IO) {
         if (!backupExists("bk")) createBackup("bk")
-        if (backupExists("lawndeck")) {
-            restoreBackup("lawndeck")
-        } else {
-            addAllAppsToWorkspace()
-        }
+        // Always add apps to workspace to show the animation
+        addAllAppsToWorkspace()
     }
 
     suspend fun disableLawndeck() = withContext(Dispatchers.IO) {
@@ -72,9 +70,12 @@ class LawndeckManager(private val context: Context) {
 
     private fun addAllAppsToWorkspace() {
         launcher?.mAppsView?.appsStore?.apps
+            ?.filter { app -> app.targetPackage?.let { AllowedApps.isAllowed(it) } == true }
             ?.sortedBy { it.title?.toString()?.lowercase(Locale.getDefault()) }
             ?.forEach { app ->
-                ItemInstallQueue.INSTANCE.get(context).queueItem(app.targetPackage, app.user)
+                app.targetPackage?.let { packageName ->
+                    ItemInstallQueue.INSTANCE.get(context).queueItem(packageName, app.user)
+                }
             }
     }
 
