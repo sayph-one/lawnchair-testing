@@ -1,0 +1,51 @@
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/registration_panel"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:background="@drawable/registration_widget_background"
+    android:padding="24dp">
+
+    <!-- Logo -->
+    <ImageView
+        android:id="@+id/registration_logo"
+        android:layout_width="150dp"
+        android:layout_height="wrap_content"
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:src="@drawable/sayph_logo"
+        android:contentDescription="@string/app_name"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Message text -->
+    <TextView
+        android:id="@+id/registration_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Device not registered with Sayph.\nApps are hidden until registration is complete."
+        android:textColor="#FFFFFFFF"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:lineSpacingExtra="4dp"
+        android:textAlignment="center"
+        android:gravity="center"
+        android:paddingHorizontal="10dp"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Button -->
+    <Button
+        android:id="@+id/register_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="200dp"
+        android:text="Register"
+        android:textAllCaps="true"
+        android:textSize="16sp"
+        android:textColor="#1d4576"
+        android:background="@drawable/registration_button_background"
+        android:paddingHorizontal="32dp"
+        android:paddingVertical="12dp"
+        android:layout_marginTop="8dp" />
+</LinearLayout>

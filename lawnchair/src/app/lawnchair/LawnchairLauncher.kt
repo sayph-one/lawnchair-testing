@@ -50,8 +50,10 @@ import app.lawnchair.preferences2.PreferenceManager2
 import app.lawnchair.root.RootHelperManager
 import app.lawnchair.root.RootNotAvailableException
 import app.lawnchair.theme.ThemeProvider
+import app.lawnchair.ui.RegistrationOverlayManager
 import app.lawnchair.ui.popup.LauncherOptionsPopup
 import app.lawnchair.ui.popup.LawnchairShortcut
+import app.lawnchair.util.AllowedApps
 import app.lawnchair.util.getThemedIconPacksInstalled
 import app.lawnchair.util.unsafeLazy
 import app.lawnchair.views.LawnchairFloatingSurfaceView
@@ -101,6 +103,8 @@ class LawnchairLauncher : QuickstepLauncher() {
     private val preferenceManager2 by unsafeLazy { PreferenceManager2.getInstance(this) }
     private val insetsController by unsafeLazy { WindowInsetsControllerCompat(launcher.window, rootView) }
     private val themeProvider by unsafeLazy { ThemeProvider.INSTANCE.get(this) }
+    private var registrationOverlayManager: RegistrationOverlayManager? = null
+    private var statusReceiver: AllowedApps.RegistrationStatusReceiver? = null
     private val noStatusBarStateListener = object : StateManager.StateListener<LauncherState> {
         override fun onStateTransitionStart(toState: LauncherState) {
             if (toState is OverviewState) {
@@ -250,6 +254,9 @@ class LawnchairLauncher : QuickstepLauncher() {
         reloadIconsIfNeeded()
 
         AppDatabase.INSTANCE.get(this).checkpointSync()
+
+        // ADD REGISTRATION OVERLAY INITIALIZATION HERE
+        initializeRegistrationOverlay()
     }
 
     override fun collectStateHandlers(out: MutableList<StateHandler<LauncherState>>) {
@@ -463,12 +470,21 @@ class LawnchairLauncher : QuickstepLauncher() {
                 }
             },
         )
+
+        // ADD REGISTRATION STATUS CHECK HERE
+        android.util.Log.d("LawnchairLauncher", "onResume() called - checking registration status")
+        AllowedApps.updateRegistrationCache(this)
+        app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this)
+        registrationOverlayManager?.refreshStatus()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         // Only actually closes if required, safe to call if not enabled
         SmartspacerClient.close()
+
+        // ADD REGISTRATION OVERLAY CLEANUP HERE
+        cleanupRegistrationOverlay()
     }
 
     override fun getDefaultOverlay(): LauncherOverlayManager = defaultOverlay
@@ -476,6 +492,114 @@ class LawnchairLauncher : QuickstepLauncher() {
     fun recreateIfNotScheduled() {
         if (sRestartFlags == 0) {
             recreate()
+        }
+    }
+
+    private fun initializeRegistrationOverlay() {
+        try {
+            // Update registration cache immediately
+            AllowedApps.updateRegistrationCache(this)
+
+            // Debug the current state
+            app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this)
+
+            // Initialize overlay manager with dragLayer as the container
+            // dragLayer is the top-level container in Lawnchair that overlays everything
+            registrationOverlayManager = RegistrationOverlayManager(this, dragLayer)
+
+            // Debug overlay state
+            app.lawnchair.util.DebugRegistrationHelper.logOverlayState(registrationOverlayManager)
+
+            // Register broadcast receiver for immediate status updates
+            statusReceiver = AllowedApps.registerStatusReceiver(this)
+
+            // Initial check - this will show overlay immediately if needed
+            registrationOverlayManager?.updateOverlayVisibility()
+
+            // Start periodic debugging
+            startPeriodicDebugCheck()
+
+        } catch (e: Exception) {
+            android.util.Log.e("LawnchairLauncher", "Failed to initialize registration overlay", e)
+        }
+    }
+
+    private fun setRegistrationStatusForTesting(isRegistered: Boolean) {
+        try {
+            val prefs = getSharedPreferences("sayph_device_status", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putBoolean("device_registered", isRegistered)
+                .putLong("last_update_timestamp", System.currentTimeMillis())
+                .apply()
+
+            android.util.Log.d("LawnchairLauncher", "TESTING: Set registration status to $isRegistered")
+
+            // Force refresh the overlay
+            AllowedApps.updateRegistrationCache(this)
+            registrationOverlayManager?.refreshStatus()
+
+        } catch (e: Exception) {
+            android.util.Log.e("LawnchairLauncher", "Failed to set test registration status", e)
+        }
+    }
+
+    private fun startPeriodicDebugCheck() {
+        // Check registration status every 5 seconds for debugging using Handler
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        val debugRunnable = object : Runnable {
+            override fun run() {
+                android.util.Log.d("LawnchairLauncher", "=== PERIODIC DEBUG CHECK ===")
+                AllowedApps.updateRegistrationCache(this@LawnchairLauncher)
+                app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this@LawnchairLauncher)
+                registrationOverlayManager?.refreshStatus()
+
+                // Schedule next check
+                handler.postDelayed(this, 5000)
+            }
+        }
+
+        // Start the first check
+        handler.postDelayed(debugRunnable, 5000)
+    }
+
+    private fun cleanupRegistrationOverlay() {
+        try {
+            // Clean up overlay manager
+            registrationOverlayManager?.destroy()
+            registrationOverlayManager = null
+
+            // Unregister broadcast receiver
+            statusReceiver?.let { receiver ->
+                try {
+                    unregisterReceiver(receiver)
+                } catch (e: Exception) {
+                    // Receiver might not be registered, ignore
+                    android.util.Log.w("LawnchairLauncher", "Failed to unregister status receiver", e)
+                }
+            }
+            statusReceiver = null
+
+        } catch (e: Exception) {
+            android.util.Log.e("LawnchairLauncher", "Failed to cleanup registration overlay", e)
+        }
+    }
+
+    fun refreshRegistrationStatus() {
+        registrationOverlayManager?.refreshStatus()
+    }
+
+    fun forceShowRegistrationOverlay() {
+        android.util.Log.d("LawnchairLauncher", "forceShowRegistrationOverlay() called for testing")
+        registrationOverlayManager?.let { manager ->
+            // Force create fallback overlay for testing
+            try {
+                val method = manager.javaClass.getDeclaredMethod("createFallbackOverlay")
+                method.isAccessible = true
+                method.invoke(manager)
+                android.util.Log.d("LawnchairLauncher", "Successfully called createFallbackOverlay for testing")
+            } catch (e: Exception) {
+                android.util.Log.e("LawnchairLauncher", "Failed to call createFallbackOverlay for testing", e)
+            }
         }
     }
 
