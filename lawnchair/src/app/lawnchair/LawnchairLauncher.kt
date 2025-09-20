@@ -30,6 +30,7 @@ import android.util.Pair
 import android.view.Display
 import android.view.View
 import android.view.ViewTreeObserver
+import android.widget.Button
 import android.window.SplashScreen
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -507,11 +508,26 @@ class LawnchairLauncher : QuickstepLauncher() {
             // dragLayer is the top-level container in Lawnchair that overlays everything
             registrationOverlayManager = RegistrationOverlayManager(this, dragLayer)
 
+            registrationOverlayManager?.onRegistrationChanged = {
+                android.util.Log.d("LawnchairLauncher", "Registration changed callback - refreshing apps")
+                refreshAppsList()
+            }
+
             // Debug overlay state
             app.lawnchair.util.DebugRegistrationHelper.logOverlayState(registrationOverlayManager)
 
             // Register broadcast receiver for immediate status updates
             statusReceiver = AllowedApps.registerStatusReceiver(this)
+
+            // Add registration listener that also refreshes apps
+            AllowedApps.addRegistrationListener {
+                android.util.Log.d("LawnchairLauncher", "=== REGISTRATION LISTENER TRIGGERED ===")
+                android.util.Log.d("LawnchairLauncher", "Registration status changed - updating overlay and refreshing apps")
+                registrationOverlayManager?.updateOverlayVisibility()
+                refreshAppsList()
+            }
+            android.util.Log.d("LawnchairLauncher", "Registration listener added successfully")
+
 
             // Initial check - this will show overlay immediately if needed
             registrationOverlayManager?.updateOverlayVisibility()
@@ -541,6 +557,115 @@ class LawnchairLauncher : QuickstepLauncher() {
         } catch (e: Exception) {
             android.util.Log.e("LawnchairLauncher", "Failed to set test registration status", e)
         }
+    }
+
+    /**
+     * Helper method to check if an object has a specific method
+     */
+    private fun hasMethod(obj: Any, methodName: String): Boolean {
+        return try {
+            obj.javaClass.getMethod(methodName) != null
+        } catch (e: NoSuchMethodException) {
+            false
+        }
+    }
+
+    /**
+     * Refresh the apps list when registration status changes
+     */
+    private fun refreshAppsList() {
+        try {
+            android.util.Log.d("LawnchairLauncher", "Attempting to refresh apps list")
+
+            // Approach 1: Try to refresh the apps view directly
+            appsView?.let { appsView ->
+                android.util.Log.d("LawnchairLauncher", "Refreshing via appsView")
+                try {
+                    // Try common app store refresh methods
+                    appsView.appsStore?.let { appsStore ->
+                        // Try different possible method names
+                        when {
+                            // Try to find a reload or refresh method
+                            hasMethod(appsStore, "reload") -> {
+                                appsStore.javaClass.getMethod("reload").invoke(appsStore)
+                                android.util.Log.d("LawnchairLauncher", "Called appsStore.reload()")
+                            }
+                            hasMethod(appsStore, "refresh") -> {
+                                appsStore.javaClass.getMethod("refresh").invoke(appsStore)
+                                android.util.Log.d("LawnchairLauncher", "Called appsStore.refresh()")
+                            }
+                            hasMethod(appsStore, "reloadApps") -> {
+                                appsStore.javaClass.getMethod("reloadApps").invoke(appsStore)
+                                android.util.Log.d("LawnchairLauncher", "Called appsStore.reloadApps()")
+                            }
+                            else -> {
+                                android.util.Log.d("LawnchairLauncher", "No known refresh methods found on appsStore")
+                            }
+                        }
+                    }
+
+                    // Try refreshing the apps view itself
+                    when {
+                        hasMethod(appsView, "refresh") -> {
+                            appsView.javaClass.getMethod("refresh").invoke(appsView)
+                            android.util.Log.d("LawnchairLauncher", "Called appsView.refresh()")
+                        }
+                        hasMethod(appsView, "reloadApps") -> {
+                            appsView.javaClass.getMethod("reloadApps").invoke(appsView)
+                            android.util.Log.d("LawnchairLauncher", "Called appsView.reloadApps()")
+                        }
+                        else -> {
+                            android.util.Log.d("LawnchairLauncher", "No known refresh methods found on appsView")
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("LawnchairLauncher", "appsView refresh failed", e)
+                }
+            } ?: android.util.Log.d("LawnchairLauncher", "appsView is null")
+
+            // Approach 2: Try to refresh via model
+            model?.let { model ->
+                try {
+                    android.util.Log.d("LawnchairLauncher", "Refreshing via model")
+                    when {
+                        hasMethod(model, "forceReload") -> {
+                            model.javaClass.getMethod("forceReload").invoke(model)
+                            android.util.Log.d("LawnchairLauncher", "Called model.forceReload()")
+                        }
+                        hasMethod(model, "reload") -> {
+                            model.javaClass.getMethod("reload").invoke(model)
+                            android.util.Log.d("LawnchairLauncher", "Called model.reload()")
+                        }
+                        else -> {
+                            android.util.Log.d("LawnchairLauncher", "No known reload methods found on model")
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("LawnchairLauncher", "model refresh failed", e)
+                }
+            } ?: android.util.Log.d("LawnchairLauncher", "model is null")
+
+            // Approach 3: Try the nuclear option - recreate activity
+            try {
+                android.util.Log.d("LawnchairLauncher", "Using nuclear option - recreating activity")
+                runOnUiThread {
+                    recreate()
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("LawnchairLauncher", "recreate failed", e)
+            }
+
+            android.util.Log.d("LawnchairLauncher", "App list refresh attempts completed")
+
+        } catch (e: Exception) {
+            android.util.Log.e("LawnchairLauncher", "Failed to refresh apps list", e)
+        }
+    }
+
+
+    fun manualRefreshApps() {
+        android.util.Log.d("LawnchairLauncher", "=== MANUAL REFRESH TRIGGERED ===")
+        refreshAppsList()
     }
 
     private fun startPeriodicDebugCheck() {

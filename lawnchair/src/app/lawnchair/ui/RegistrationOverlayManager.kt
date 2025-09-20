@@ -16,6 +16,9 @@ class RegistrationOverlayManager(
     private val parentContainer: ViewGroup
 ) {
 
+    // Add this property to allow passing a refresh callback
+    var onRegistrationChanged: (() -> Unit)? = null
+
     private var overlayView: View? = null
     private var isOverlayVisible = false
 
@@ -34,6 +37,7 @@ class RegistrationOverlayManager(
      */
     fun updateOverlayVisibility() {
         val needsRegistration = AllowedApps.needsRegistration(context)
+        val wasOverlayVisible = isOverlayVisible
 
         android.util.Log.d("RegistrationOverlay", "updateOverlayVisibility - needsRegistration: $needsRegistration, isOverlayVisible: $isOverlayVisible")
 
@@ -43,6 +47,9 @@ class RegistrationOverlayManager(
         } else if (!needsRegistration && isOverlayVisible) {
             android.util.Log.d("RegistrationOverlay", "Hiding registration overlay")
             hideRegistrationOverlay()
+            // ADD THIS: Trigger refresh when overlay is hidden (device registered)
+            android.util.Log.d("RegistrationOverlay", "Device registered - triggering callback")
+            onRegistrationChanged?.invoke()
         } else {
             android.util.Log.d("RegistrationOverlay", "No overlay change needed")
         }
@@ -227,18 +234,31 @@ class RegistrationOverlayManager(
      */
     private fun openSayphAgent() {
         try {
+            android.util.Log.d("RegistrationOverlay", "Attempting to open Sayph Agent")
+
             val intent = context.packageManager.getLaunchIntentForPackage("com.sayph.sayphagent")
+            android.util.Log.d("RegistrationOverlay", "Launch intent for Sayph Agent: $intent")
+
             if (intent != null) {
+                android.util.Log.d("RegistrationOverlay", "Starting Sayph Agent activity")
                 context.startActivity(intent)
             } else {
-                // Fallback: try to open app in Play Store
-                val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
-                    data = android.net.Uri.parse("market://details?id=com.sayph.sayphagent")
-                }
-                context.startActivity(playStoreIntent)
+                android.util.Log.w("RegistrationOverlay", "Sayph Agent not found")
+                // Show error message instead of opening Play Store
+                android.widget.Toast.makeText(
+                    context,
+                    "Sayph Agent app not found. Please install Sayph Agent to register this device.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
             }
         } catch (e: Exception) {
             android.util.Log.e("RegistrationOverlay", "Failed to open Sayph Agent", e)
+            // Show error message for any exceptions too
+            android.widget.Toast.makeText(
+                context,
+                "Unable to open Sayph Agent app.",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
