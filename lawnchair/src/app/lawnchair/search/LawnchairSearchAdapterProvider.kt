@@ -16,6 +16,8 @@ import com.android.launcher3.allapps.AllAppsGridAdapter
 import com.android.launcher3.allapps.BaseAllAppsAdapter
 import com.android.launcher3.allapps.search.DefaultSearchAdapterProvider
 import com.android.launcher3.views.ActivityContext
+import app.lawnchair.search.adapter.EMPTY_STATE
+import app.lawnchair.search.adapter.SEARCH_SETTINGS
 
 class LawnchairSearchAdapterProvider(
     launcher: ActivityContext,
@@ -107,20 +109,20 @@ class LawnchairSearchAdapterProvider(
         private const val SEARCH_RESULT_EMPTY_STATE = 1 shl 21
         private const val SEARCH_RESULT_SEARCH_SETTINGS = 1 shl 22
 
-        val viewTypeMap = mapOf(
-            LayoutType.ICON_SINGLE_VERTICAL_TEXT to SEARCH_RESULT_ICON,
-            LayoutType.ICON_HORIZONTAL_TEXT to SEARCH_RESULT_ICON_ROW,
-            LayoutType.SMALL_ICON_HORIZONTAL_TEXT to SEARCH_RESULT_SMALL_ICON_ROW,
-            LayoutType.HORIZONTAL_MEDIUM_TEXT to SEARCH_RESULT_SUGGESTION_TILE,
-            LayoutType.EMPTY_DIVIDER to SEARCH_RESULT_DIVIDER,
-            LayoutType.TEXT_HEADER to SEARCH_TEXT_HEADER,
-            LayoutType.PEOPLE_TILE to SEARCH_PEOPLE_TILE,
-            LayoutType.THUMBNAIL to SEARCH_RESULT_FILE_TILE,
-            LayoutType.ICON_SLICE to SEARCH_RESULT_SETTINGS_TILE,
-            LayoutType.WIDGET_LIVE to SEARCH_RESULT_RECENT_TILE,
-            LayoutType.CALCULATOR to SEARCH_RESULT_CALCULATOR,
-            LayoutType.EMPTY_STATE to SEARCH_RESULT_EMPTY_STATE,
-            LayoutType.SEARCH_SETTINGS to SEARCH_RESULT_SEARCH_SETTINGS,
+        val viewTypeMap: Map<Any, Int> = mapOf(
+            Pair(LayoutType.ICON_SINGLE_VERTICAL_TEXT, SEARCH_RESULT_ICON),
+            Pair(LayoutType.ICON_HORIZONTAL_TEXT, SEARCH_RESULT_ICON_ROW),
+            Pair(LayoutType.SMALL_ICON_HORIZONTAL_TEXT, SEARCH_RESULT_SMALL_ICON_ROW),
+            Pair(LayoutType.HORIZONTAL_MEDIUM_TEXT, SEARCH_RESULT_SUGGESTION_TILE),
+            Pair(LayoutType.EMPTY_DIVIDER, SEARCH_RESULT_DIVIDER),
+            Pair(LayoutType.TEXT_HEADER, SEARCH_TEXT_HEADER),
+            Pair(LayoutType.PEOPLE_TILE, SEARCH_PEOPLE_TILE),
+            Pair(LayoutType.THUMBNAIL, SEARCH_RESULT_FILE_TILE),
+            Pair(LayoutType.ICON_SLICE, SEARCH_RESULT_SETTINGS_TILE),
+            Pair(LayoutType.WIDGET_LIVE, SEARCH_RESULT_RECENT_TILE),
+            Pair(LayoutType.CALCULATOR, SEARCH_RESULT_CALCULATOR),
+            Pair(EMPTY_STATE, SEARCH_RESULT_EMPTY_STATE),
+            Pair(SEARCH_SETTINGS, SEARCH_RESULT_SEARCH_SETTINGS),
         )
     }
 }

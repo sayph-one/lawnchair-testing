@@ -42,6 +42,8 @@ import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
 import okio.ByteString
+import app.lawnchair.search.adapter.EMPTY_STATE
+import app.lawnchair.search.adapter.SEARCH_SETTINGS
 
 class SearchTargetFactory(
     private val context: Context,
@@ -333,7 +335,7 @@ class SearchTargetFactory(
 
         return SearchTargetCompat.Builder(
             SearchTargetCompat.RESULT_TYPE_EMPTY_RESULT,
-            LayoutType.EMPTY_STATE,
+            EMPTY_STATE,
             id,
         ).apply {
             setPackageName(EMPTY_STATE)
@@ -358,7 +360,7 @@ class SearchTargetFactory(
 
         return SearchTargetCompat.Builder(
             SearchTargetCompat.RESULT_TYPE_SEARCH_SETTINGS,
-            LayoutType.SEARCH_SETTINGS,
+            SEARCH_SETTINGS,
             id,
         ).apply {
             setPackageName(SEARCH_SETTINGS)
