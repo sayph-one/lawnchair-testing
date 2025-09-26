@@ -39,7 +39,7 @@ import app.lawnchair.icons.shape.IconShapeManager
 import app.lawnchair.preferences.PreferenceManager as LawnchairPreferenceManager
 import app.lawnchair.qsb.providers.QsbSearchProvider
 import app.lawnchair.search.algorithms.LawnchairSearchAlgorithm
-import app.lawnchair.search.algorithms.data.WebSearchProvider
+import app.lawnchair.search.algorithms.engine.provider.web.WebSearchProvider
 import app.lawnchair.smartspace.model.SmartspaceCalendar
 import app.lawnchair.smartspace.model.SmartspaceMode
 import app.lawnchair.smartspace.model.SmartspaceTimeFormat
@@ -47,6 +47,7 @@ import app.lawnchair.theme.color.ColorMode
 import app.lawnchair.theme.color.ColorOption
 import app.lawnchair.theme.color.ColorStyle
 import app.lawnchair.ui.popup.LauncherOptionsPopup
+import app.lawnchair.ui.popup.toOptionOrderString
 import app.lawnchair.ui.preferences.components.HiddenAppsInSearch
 import app.lawnchair.ui.preferences.data.liveinfo.LiveInformationManager
 import app.lawnchair.util.kotlinxJson
@@ -294,11 +295,6 @@ class PreferenceManager2 private constructor(private val context: Context) :
     val lockHomeScreen = preference(
         key = booleanPreferencesKey(name = "lock_home_screen"),
         defaultValue = context.resources.getBoolean(R.bool.config_default_lock_home_screen),
-        onSet = {
-            if (it) {
-                LauncherOptionsPopup.disableUnavailableItems(context)
-            }
-        },
     )
 
     val legacyPopupOptionsMigrated = preference(
@@ -308,7 +304,7 @@ class PreferenceManager2 private constructor(private val context: Context) :
 
     val launcherPopupOrder = preference(
         key = stringPreferencesKey(name = "launcher_popup_order"),
-        defaultValue = LauncherOptionsPopup.DEFAULT_ORDER,
+        defaultValue = LauncherOptionsPopup.DEFAULT_ORDER.toOptionOrderString(),
         onSet = { reloadHelper.reloadGrid() },
     )
 
@@ -507,6 +503,21 @@ class PreferenceManager2 private constructor(private val context: Context) :
         onSet = { reloadHelper.recreate() },
     )
 
+    val webSuggestionProviderUrl = preference(
+        key = stringPreferencesKey(name = "web_suggestion_provider_url"),
+        defaultValue = "",
+    )
+
+    val webSuggestionProviderSuggestionsUrl = preference(
+        key = stringPreferencesKey(name = "web_suggestions_provider_suggestions_url"),
+        defaultValue = "",
+    )
+
+    val webSuggestionProviderName = preference(
+        key = stringPreferencesKey(name = "web_suggestion_provider_name"),
+        defaultValue = context.resources.getString(R.string.custom),
+    )
+
     val maxAppSearchResultCount = preference(
         key = intPreferencesKey(name = "max_search_result_count"),
         defaultValue = resourceProvider.getInt(R.dimen.config_default_search_max_result_count),
@@ -668,10 +679,20 @@ class PreferenceManager2 private constructor(private val context: Context) :
         onSet = { reloadHelper.reloadIcons() },
     )
 
+    val showDeckLayout = preference(
+        key = booleanPreferencesKey(name = "show_deck_layout"),
+        defaultValue = false,
+    )
+
     val enableLabelInDock = preference(
         key = booleanPreferencesKey(name = "enable_label_dock"),
         defaultValue = false,
         onSet = { reloadHelper.reloadGrid() },
+    )
+
+    val iconSwipeGestures = preference(
+        key = booleanPreferencesKey(name = "icon_swipe_gestures"),
+        defaultValue = false,
     )
 
     val doubleTapGestureHandler = serializablePreference<GestureHandlerConfig>(

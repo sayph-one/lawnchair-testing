@@ -45,6 +45,7 @@ import app.lawnchair.ui.preferences.components.DraggableSwitchPreference
 import app.lawnchair.ui.preferences.components.controls.ClickablePreference
 import app.lawnchair.ui.preferences.components.layout.PreferenceGroupHeading
 import app.lawnchair.ui.preferences.components.layout.PreferenceLayout
+import app.lawnchair.ui.preferences.navigation.HomeScreenPopupEditor
 import app.lawnchair.ui.theme.isSelectedThemeDark
 import com.android.launcher3.R
 
@@ -57,7 +58,7 @@ fun LauncherPopupPreferenceItem(
         modifier = modifier,
         label = stringResource(R.string.edit_menu_items),
         onClick = {
-            navController.navigate(HomeScreenRoutes.POPUP_EDITOR)
+            navController.navigate(HomeScreenPopupEditor)
         },
     )
 }
@@ -87,7 +88,7 @@ fun LauncherPopupPreference(
         DraggablePreferenceGroup(
             label = stringResource(R.string.popup_menu_items),
             items = optionsList,
-            defaultList = LauncherOptionsPopup.DEFAULT_ORDER.toLauncherOptions(),
+            defaultList = LauncherOptionsPopup.DEFAULT_ORDER,
             onOrderChange = {
                 optionsList = it
                 optionsPref.onChange(it.toOptionOrderString())
@@ -106,7 +107,7 @@ fun LauncherPopupPreference(
             DraggableSwitchPreference(
                 label = stringResource(metadata.label),
                 description = if (!enabled && item.identifier != "home_settings") stringResource(R.string.home_screen_locked) else null,
-                checked = item.isEnabled,
+                checked = if (!enabled && item.identifier != "home_settings") false else item.isEnabled,
                 onCheckedChange = {
                     optionsList[index].isEnabled = it
                     optionsPref.onChange(optionsList.toOptionOrderString())

@@ -19,7 +19,7 @@ import app.lawnchair.ui.preferences.components.AppItem
 import app.lawnchair.ui.preferences.components.controls.ClickablePreference
 import app.lawnchair.ui.preferences.components.layout.PreferenceLayoutLazyColumn
 import app.lawnchair.ui.preferences.components.layout.preferenceGroupItems
-import app.lawnchair.ui.preferences.navigation.Routes
+import app.lawnchair.ui.preferences.navigation.IconPicker
 import app.lawnchair.ui.util.OnResult
 import app.lawnchair.util.requireSystemService
 import com.android.launcher3.LauncherAppState
@@ -39,7 +39,8 @@ fun SelectIconPreference(componentKey: ComponentKey) {
     val iconPacks by LocalPreferenceInteractor.current.iconPacks.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
     val scope = rememberCoroutineScope()
-    val model = LauncherAppState.getInstance(context).model
+    val launcherAppState = LauncherAppState.getInstance(context)
+    val model = launcherAppState.model
 
     val repo = IconOverrideRepository.INSTANCE.get(context)
     OnResult<IconPickerItem> { item ->
@@ -49,6 +50,7 @@ fun SelectIconPreference(componentKey: ComponentKey) {
                 it.setResult(Activity.RESULT_OK)
                 it.finish()
                 model.onAppIconChanged(componentKey.componentName.packageName, componentKey.user)
+                launcherAppState.reloadIcons()
             }
         }
     }
@@ -68,7 +70,7 @@ fun SelectIconPreference(componentKey: ComponentKey) {
                                 it.setResult(Activity.RESULT_OK)
                                 it.finish()
                                 model.onAppIconChanged(componentKey.componentName.packageName, componentKey.user)
-                                LauncherAppState.INSTANCE.get(context).reloadIcons()
+                                launcherAppState.reloadIcons()
                             }
                         }
                     },
@@ -85,9 +87,9 @@ fun SelectIconPreference(componentKey: ComponentKey) {
                 icon = remember(iconPack) { iconPack.icon.toBitmap() },
                 onClick = {
                     if (iconPack.packageName.isEmpty()) {
-                        navController.navigate(Routes.ICON_PICKER)
+                        navController.navigate(IconPicker())
                     } else {
-                        navController.navigate("${Routes.ICON_PICKER}/${iconPack.packageName}")
+                        navController.navigate(IconPicker(iconPack.packageName))
                     }
                 },
             )

@@ -128,6 +128,7 @@ sealed class QsbSearchProvider(
             Wikipedia,
             GitHub,
             DuckDuckGo,
+            Ecosia,
             Presearch,
             Bing,
             Brave,
@@ -136,7 +137,7 @@ sealed class QsbSearchProvider(
             Firefox,
             Iceraven,
             Startpage,
-            Mull,
+            IronFox,
             Kagi,
             None,
         )

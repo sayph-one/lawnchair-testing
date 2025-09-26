@@ -89,7 +89,10 @@ class PreferenceManager private constructor(private val context: Context) :
     val searchResultCalculator = BoolPref("pref_searchResultCalculator", false)
 
     val searchResultApps = BoolPref("pref_searchResultApps", true, recreate)
-    val searchResultFiles = BoolPref("pref_searchResultFiles", false, recreate)
+    val searchResultFilesToggle = BoolPref("pref_searchResultFiles", false, recreate)
+    val searchResultAllFiles = BoolPref("pref_searchResultAllFiles", false, recreate)
+    val searchResultAudio = BoolPref("pref_searchResultAudio", false, recreate)
+    val searchResultVisualMedia = BoolPref("pref_searchResultVisualMedia", false, recreate)
     val searchResultStartPageSuggestion = BoolPref("pref_searchResultStartPageSuggestion", true, recreate)
     val searchResultSettingsEntry = BoolPref("pref_searchResultSettingsEntry", false, recreate)
     val searchResulRecentSuggestion = BoolPref("pref_searchResultRecentSuggestion", false, recreate)
@@ -115,6 +118,7 @@ class PreferenceManager private constructor(private val context: Context) :
     val wallpaperBlur = IntPref("pref_wallpaperBlur", 25, recreate)
     val wallpaperBlurFactorThreshold = FloatPref("pref_wallpaperBlurFactor", 3.0F, recreate)
 
+    val drawerListOrder = StringPref("pref_drawerListOrder", "", reloadGrid)
     val drawerList = BoolPref("pref_drawerList", true, recreate)
     val folderApps = BoolPref("pref_hideFolderApps", true, reloadGrid)
 

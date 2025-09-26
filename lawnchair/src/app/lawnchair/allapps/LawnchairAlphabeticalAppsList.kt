@@ -2,11 +2,11 @@ package app.lawnchair.allapps
 
 import android.content.Context
 import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.activity.viewModels
 import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.lifecycleScope
-import app.lawnchair.data.factory.ViewModelFactory
+import app.lawnchair.data.folder.model.FolderOrderUtils
 import app.lawnchair.data.folder.model.FolderViewModel
 import app.lawnchair.flowerpot.Flowerpot
 import app.lawnchair.launcher
@@ -40,10 +40,12 @@ class LawnchairAlphabeticalAppsList<T>(
     private val prefs2 = PreferenceManager2.getInstance(context)
     private val prefs = PreferenceManager.getInstance(context)
 
-    private var viewModel: FolderViewModel
+    private val viewModel: FolderViewModel by (context as ComponentActivity).viewModels()
     private var folderList = mutableListOf<FolderInfo>()
     private val filteredList = mutableListOf<AppInfo>()
-    val potsManager = Flowerpot.Manager.getInstance(context)
+
+    private val folderOrder = FolderOrderUtils.stringToIntList(prefs.drawerListOrder.get())
+    private val potsManager = Flowerpot.Manager.getInstance(context)
 
     init {
         context.launcher.deviceProfile.inv.addOnChangeListener(this)
@@ -55,15 +57,14 @@ class LawnchairAlphabeticalAppsList<T>(
         } catch (t: Throwable) {
             Log.w(TAG, "Failed to initialize hidden apps", t)
         }
-
-        val factory = ViewModelFactory(context) { FolderViewModel(it) }
-        viewModel = ViewModelProvider(context as ViewModelStoreOwner, factory)[FolderViewModel::class.java]
         observeFolders()
     }
 
     private fun observeFolders() {
-        viewModel.foldersMutable.observe(context as LifecycleOwner) { folders ->
-            folderList = folders.toMutableList()
+        viewModel.foldersLiveData.observe(context as LifecycleOwner) { folders ->
+            folderList = folders
+                .sortedBy { folderOrder.indexOf(it.id) }
+                .toMutableList()
             updateAdapterItems()
         }
     }
@@ -131,6 +132,5 @@ class LawnchairAlphabeticalAppsList<T>(
 
     override fun onIdpChanged(modelPropertiesChanged: Boolean) {
         onAppsUpdated()
-        viewModel.refreshFolders()
     }
 }
