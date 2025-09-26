@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import java.util.Collections
 
 object AllowedApps {
     private val allowedBasePackages = listOf(
@@ -21,23 +23,31 @@ object AllowedApps {
 
     private const val SAYPH_AGENT_PACKAGE = "com.sayph.sayphagent"
 
-    // Registration status change listeners
-    private val registrationListeners = mutableSetOf<() -> Unit>()
+    // Registration status change listeners - now thread-safe
+    private val registrationListeners = Collections.synchronizedSet(mutableSetOf<() -> Unit>())
 
-    // Cache for registration status when context isn't available
+    // Enhanced cache with thread safety
+    private val cacheLock = ReentrantReadWriteLock()
+    @Volatile
     private var lastRegistrationCheck = 0L
+    @Volatile
     private var cachedRegistrationStatus = false
-    private const val CACHE_DURATION_MS = 2000L
+    private const val CACHE_DURATION_MS = 5000L // Increased from 2000L for more stability
 
     /**
      * Check if an app is allowed to be shown (with context for registration check)
+     * This is the primary method - use this when context is available
      */
     fun isAllowed(packageName: String, context: Context): Boolean {
-        // Always allow Sayph Agent
-        if (packageName == SAYPH_AGENT_PACKAGE) return true
+        // Never show Sayph Agent in app list
+        if (packageName == SAYPH_AGENT_PACKAGE) return false
+
+        // Get fresh registration status and update cache
+        val isRegistered = SayphRegistrationChecker.isDeviceRegistered(context)
+        updateRegistrationCacheInternal(isRegistered)
 
         // If device not registered, hide all other apps
-        if (!SayphRegistrationChecker.isDeviceRegistered(context)) return false
+        if (!isRegistered) return false
 
         // If registered, check if it's in the allowed list
         return isInAllowedList(packageName)
@@ -48,9 +58,11 @@ object AllowedApps {
      * This version uses a cached registration status to avoid requiring context
      */
     fun isAllowed(packageName: String): Boolean {
+        // Never show Sayph Agent in app list
+        if (packageName == SAYPH_AGENT_PACKAGE) return false
 
-        // Check registration status
-        val isRegistered = isDeviceRegisteredCached()
+        // Check registration status from cache
+        val isRegistered = getRegistrationStatusFromCache()
         android.util.Log.v("AllowedApps", "Package $packageName - isRegistered: $isRegistered")
 
         // If device not registered, hide all other apps
@@ -65,7 +77,50 @@ object AllowedApps {
         return inAllowedList
     }
 
-    private fun isInAllowedList(packageName: String): Boolean {
+    /**
+     * Thread-safe method to get registration status from cache
+     */
+    private fun getRegistrationStatusFromCache(): Boolean {
+        cacheLock.readLock().lock()
+        try {
+            val now = System.currentTimeMillis()
+            return if (now - lastRegistrationCheck <= CACHE_DURATION_MS) {
+                cachedRegistrationStatus
+            } else {
+                // Cache is stale - assume not registered for safety
+                android.util.Log.d("AllowedApps", "Registration cache is stale, returning false")
+                false
+            }
+        } finally {
+            cacheLock.readLock().unlock()
+        }
+    }
+
+    /**
+     * Thread-safe method to update registration cache
+     */
+    private fun updateRegistrationCacheInternal(isRegistered: Boolean) {
+        cacheLock.writeLock().lock()
+        try {
+            val previousStatus = cachedRegistrationStatus
+            cachedRegistrationStatus = isRegistered
+            lastRegistrationCheck = System.currentTimeMillis()
+
+            if (previousStatus != isRegistered) {
+                android.util.Log.d("AllowedApps", "Registration status changed: $previousStatus -> $isRegistered")
+            }
+        } finally {
+            cacheLock.writeLock().unlock()
+        }
+    }
+
+    /**
+     * Check if package is in the allowed list (ignoring registration status)
+     */
+    fun isInAllowedList(packageName: String): Boolean {
+        // Sayph Agent should never be visible in app lists
+        if (packageName == SAYPH_AGENT_PACKAGE) return false
+
         return allowedBasePackages.any { base ->
             packageName == base ||
                 (packageName.startsWith("$base.") &&
@@ -74,26 +129,25 @@ object AllowedApps {
     }
 
     /**
-     * Get cached registration status without requiring context
-     */
-    private fun isDeviceRegisteredCached(): Boolean {
-        val now = System.currentTimeMillis()
-        // If cache is stale, return false (assume not registered for safety)
-        if (now - lastRegistrationCheck > CACHE_DURATION_MS) {
-            return false
-        }
-        return cachedRegistrationStatus
-    }
-
-    /**
      * Update the cached registration status (called from launcher or when status changes)
      */
     fun updateRegistrationCache(context: Context) {
-        cachedRegistrationStatus = SayphRegistrationChecker.isDeviceRegistered(context)
-        lastRegistrationCheck = System.currentTimeMillis()
+        val isRegistered = SayphRegistrationChecker.isDeviceRegistered(context)
+        updateRegistrationCacheInternal(isRegistered)
+        android.util.Log.d("AllowedApps", "Registration cache updated: isRegistered=$isRegistered")
     }
 
+    /**
+     * Get all allowed package names for bulk operations
+     */
     fun getAllowedPackages(): List<String> = allowedBasePackages
+
+    /**
+     * Get all allowed package names including Sayph Agent
+     */
+    fun getAllowedPackageNames(): Set<String> {
+        return allowedBasePackages.toSet() + SAYPH_AGENT_PACKAGE
+    }
 
     /**
      * Check if device needs registration (for showing overlay)
@@ -110,6 +164,7 @@ object AllowedApps {
      */
     fun addRegistrationListener(listener: () -> Unit) {
         registrationListeners.add(listener)
+        android.util.Log.d("AllowedApps", "Registration listener added. Total listeners: ${registrationListeners.size}")
     }
 
     /**
@@ -117,22 +172,46 @@ object AllowedApps {
      */
     fun removeRegistrationListener(listener: () -> Unit) {
         registrationListeners.remove(listener)
+        android.util.Log.d("AllowedApps", "Registration listener removed. Total listeners: ${registrationListeners.size}")
     }
 
     /**
      * Notify all listeners of registration status change
      */
     private fun notifyRegistrationChanged() {
-        registrationListeners.forEach { it.invoke() }
+        android.util.Log.d("AllowedApps", "Notifying ${registrationListeners.size} registration listeners")
+        registrationListeners.forEach {
+            try {
+                it.invoke()
+            } catch (e: Exception) {
+                android.util.Log.w("AllowedApps", "Error invoking registration listener", e)
+            }
+        }
     }
 
     /**
      * Force refresh registration status and notify listeners
      */
     fun refreshRegistrationStatus(context: Context) {
+        android.util.Log.d("AllowedApps", "Force refreshing registration status")
         SayphRegistrationChecker.forceRefresh()
         updateRegistrationCache(context)
         notifyRegistrationChanged()
+    }
+
+    /**
+     * Get cache statistics for debugging
+     */
+    fun getCacheStatus(): String {
+        cacheLock.readLock().lock()
+        try {
+            val now = System.currentTimeMillis()
+            val ageMs = now - lastRegistrationCheck
+            val isValid = ageMs <= CACHE_DURATION_MS
+            return "Cache: valid=$isValid, age=${ageMs}ms, status=$cachedRegistrationStatus"
+        } finally {
+            cacheLock.readLock().unlock()
+        }
     }
 
     /**
@@ -141,6 +220,7 @@ object AllowedApps {
     class RegistrationStatusReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == "com.sayph.REGISTRATION_STATUS_CHANGED") {
+                android.util.Log.d("AllowedApps", "Received registration status change broadcast")
                 // Force refresh and notify listeners
                 refreshRegistrationStatus(context)
             }
@@ -161,6 +241,7 @@ object AllowedApps {
             context.registerReceiver(receiver, filter)
         }
 
+        android.util.Log.d("AllowedApps", "Registration status receiver registered")
         return receiver
     }
 }
