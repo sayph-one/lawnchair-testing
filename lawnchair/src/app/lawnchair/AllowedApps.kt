@@ -98,19 +98,28 @@ object AllowedApps {
 
     /**
      * Thread-safe method to update registration cache
+     * KEY FIX: Added parameter to control whether to notify listeners
      */
-    private fun updateRegistrationCacheInternal(isRegistered: Boolean) {
+    private fun updateRegistrationCacheInternal(isRegistered: Boolean, notifyListeners: Boolean = false) {
         cacheLock.writeLock().lock()
+        val previousStatus: Boolean
+        val statusChanged: Boolean
         try {
-            val previousStatus = cachedRegistrationStatus
+            previousStatus = cachedRegistrationStatus
             cachedRegistrationStatus = isRegistered
             lastRegistrationCheck = System.currentTimeMillis()
+            statusChanged = previousStatus != isRegistered
 
-            if (previousStatus != isRegistered) {
+            if (statusChanged) {
                 android.util.Log.d("AllowedApps", "Registration status changed: $previousStatus -> $isRegistered")
             }
         } finally {
             cacheLock.writeLock().unlock()
+        }
+
+        // Notify listeners AFTER releasing the lock and only if requested
+        if (notifyListeners && statusChanged) {
+            notifyRegistrationChanged()
         }
     }
 
@@ -133,7 +142,7 @@ object AllowedApps {
      */
     fun updateRegistrationCache(context: Context) {
         val isRegistered = SayphRegistrationChecker.isDeviceRegistered(context)
-        updateRegistrationCacheInternal(isRegistered)
+        updateRegistrationCacheInternal(isRegistered, notifyListeners = false)
         android.util.Log.d("AllowedApps", "Registration cache updated: isRegistered=$isRegistered")
     }
 
@@ -191,12 +200,17 @@ object AllowedApps {
 
     /**
      * Force refresh registration status and notify listeners
+     * KEY FIX: Use notifyListeners parameter to ensure listeners are called AFTER cache update
      */
     fun refreshRegistrationStatus(context: Context) {
         android.util.Log.d("AllowedApps", "Force refreshing registration status")
         SayphRegistrationChecker.forceRefresh()
-        updateRegistrationCache(context)
-        notifyRegistrationChanged()
+
+        // Update cache and notify in one atomic operation
+        val isRegistered = SayphRegistrationChecker.isDeviceRegistered(context)
+        updateRegistrationCacheInternal(isRegistered, notifyListeners = true)
+
+        android.util.Log.d("AllowedApps", "Registration status refreshed: $isRegistered")
     }
 
     /**
