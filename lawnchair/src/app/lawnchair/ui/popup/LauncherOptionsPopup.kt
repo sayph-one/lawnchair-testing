@@ -131,6 +131,14 @@ object LauncherOptionsPopup {
                     true
                 }
             }
+            .filter {
+                // Block home_settings in release builds
+                if (!BuildConfig.DEBUG && it.identifier == "home_settings") {
+                    false
+                } else {
+                    true
+                }
+            }
             .mapNotNull { optionsList[it.identifier] }
             .forEach { options.add(it) }
 
