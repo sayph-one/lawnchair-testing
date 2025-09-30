@@ -28,8 +28,10 @@ object AllowedApps {
 
     // Enhanced cache with thread safety
     private val cacheLock = ReentrantReadWriteLock()
+
     @Volatile
     private var lastRegistrationCheck = 0L
+
     @Volatile
     private var cachedRegistrationStatus = false
     private const val CACHE_DURATION_MS = 5000L // Increased from 2000L for more stability
@@ -58,6 +60,30 @@ object AllowedApps {
      * This version uses a cached registration status to avoid requiring context
      */
     fun isAllowed(packageName: String): Boolean {
+        // Debug for messaging app (will catch .debug variant too)
+        if (packageName.contains("smsmessenger")) {
+            android.util.Log.e("AllowedApps", "=== MESSAGING APP DEBUG ===")
+            android.util.Log.e("AllowedApps", "Package: $packageName")
+            android.util.Log.e("AllowedApps", "Is Sayph Agent? ${packageName == SAYPH_AGENT_PACKAGE}")
+
+            val isRegistered = getRegistrationStatusFromCache()
+            android.util.Log.e("AllowedApps", "Is Registered (cached): $isRegistered")
+
+            val inList = isInAllowedList(packageName)
+            android.util.Log.e("AllowedApps", "Is in allowed list: $inList")
+
+            android.util.Log.e("AllowedApps", "Checking against base packages:")
+            allowedBasePackages.forEachIndexed { index, base ->
+                val exactMatch = packageName == base
+                val subMatch = packageName.startsWith("$base.") &&
+                    packageName.substring(base.length + 1).matches(Regex("^[a-zA-Z0-9._-]+$"))
+                android.util.Log.e("AllowedApps", "  [$index] $base - exact: $exactMatch, sub: $subMatch")
+            }
+
+            android.util.Log.e("AllowedApps", "Final result: ${isRegistered && inList}")
+            android.util.Log.e("AllowedApps", "=========================")
+        }
+
         // Never show Sayph Agent in app list
         if (packageName == SAYPH_AGENT_PACKAGE) return false
 
@@ -100,7 +126,10 @@ object AllowedApps {
      * Thread-safe method to update registration cache
      * KEY FIX: Added parameter to control whether to notify listeners
      */
-    private fun updateRegistrationCacheInternal(isRegistered: Boolean, notifyListeners: Boolean = false) {
+    private fun updateRegistrationCacheInternal(
+        isRegistered: Boolean,
+        notifyListeners: Boolean = false
+    ) {
         cacheLock.writeLock().lock()
         val previousStatus: Boolean
         val statusChanged: Boolean
@@ -111,7 +140,10 @@ object AllowedApps {
             statusChanged = previousStatus != isRegistered
 
             if (statusChanged) {
-                android.util.Log.d("AllowedApps", "Registration status changed: $previousStatus -> $isRegistered")
+                android.util.Log.d(
+                    "AllowedApps",
+                    "Registration status changed: $previousStatus -> $isRegistered"
+                )
             }
         } finally {
             cacheLock.writeLock().unlock()
@@ -164,7 +196,10 @@ object AllowedApps {
     fun needsRegistration(context: Context): Boolean {
         val isRegistered = SayphRegistrationChecker.isDeviceRegistered(context)
         val needsReg = !isRegistered
-        android.util.Log.d("AllowedApps", "needsRegistration() - isRegistered: $isRegistered, needsRegistration: $needsReg")
+        android.util.Log.d(
+            "AllowedApps",
+            "needsRegistration() - isRegistered: $isRegistered, needsRegistration: $needsReg"
+        )
         return needsReg
     }
 
@@ -173,7 +208,10 @@ object AllowedApps {
      */
     fun addRegistrationListener(listener: () -> Unit) {
         registrationListeners.add(listener)
-        android.util.Log.d("AllowedApps", "Registration listener added. Total listeners: ${registrationListeners.size}")
+        android.util.Log.d(
+            "AllowedApps",
+            "Registration listener added. Total listeners: ${registrationListeners.size}"
+        )
     }
 
     /**
@@ -181,14 +219,20 @@ object AllowedApps {
      */
     fun removeRegistrationListener(listener: () -> Unit) {
         registrationListeners.remove(listener)
-        android.util.Log.d("AllowedApps", "Registration listener removed. Total listeners: ${registrationListeners.size}")
+        android.util.Log.d(
+            "AllowedApps",
+            "Registration listener removed. Total listeners: ${registrationListeners.size}"
+        )
     }
 
     /**
      * Notify all listeners of registration status change
      */
     private fun notifyRegistrationChanged() {
-        android.util.Log.d("AllowedApps", "Notifying ${registrationListeners.size} registration listeners")
+        android.util.Log.d(
+            "AllowedApps",
+            "Notifying ${registrationListeners.size} registration listeners"
+        )
         registrationListeners.forEach {
             try {
                 it.invoke()
@@ -257,5 +301,165 @@ object AllowedApps {
 
         android.util.Log.d("AllowedApps", "Registration status receiver registered")
         return receiver
+    }
+
+    // Add these methods to AllowedApps object for better debugging
+
+    /**
+     * Enhanced isAllowed with detailed logging for debugging
+     */
+    fun isAllowedDebug(packageName: String, context: Context? = null): Boolean {
+        val timestamp = System.currentTimeMillis()
+        val threadName = Thread.currentThread().name
+
+        android.util.Log.d("AllowedApps", "=== isAllowed called ===")
+        android.util.Log.d("AllowedApps", "Package: $packageName")
+        android.util.Log.d("AllowedApps", "Thread: $threadName")
+        android.util.Log.d("AllowedApps", "Timestamp: $timestamp")
+        android.util.Log.d("AllowedApps", "Context provided: ${context != null}")
+
+        // Never show Sayph Agent
+        if (packageName == SAYPH_AGENT_PACKAGE) {
+            android.util.Log.d("AllowedApps", "Result: FALSE (Sayph Agent)")
+            return false
+        }
+
+        // Get registration status
+        val isRegistered = if (context != null) {
+            android.util.Log.d("AllowedApps", "Checking with context (fresh)")
+            SayphRegistrationChecker.isDeviceRegistered(context)
+        } else {
+            android.util.Log.d("AllowedApps", "Checking from cache")
+            getRegistrationStatusFromCache()
+        }
+
+        android.util.Log.d("AllowedApps", "Registration status: $isRegistered")
+        android.util.Log.d("AllowedApps", "Cache status: ${getCacheStatus()}")
+
+        if (!isRegistered) {
+            android.util.Log.d("AllowedApps", "Result: FALSE (not registered)")
+            return false
+        }
+
+        val inAllowedList = isInAllowedList(packageName)
+        android.util.Log.d("AllowedApps", "In allowed list: $inAllowedList")
+        android.util.Log.d("AllowedApps", "Result: $inAllowedList")
+
+        return inAllowedList
+    }
+
+    /**
+     * Track when and from where registration checks happen
+     */
+    private val checkHistory = Collections.synchronizedList(mutableListOf<CheckRecord>())
+    private const val MAX_HISTORY = 50
+
+    data class CheckRecord(
+        val timestamp: Long,
+        val packageName: String,
+        val hadContext: Boolean,
+        val registrationStatus: Boolean,
+        val result: Boolean,
+        val threadName: String,
+        val stackTrace: String
+    )
+
+    fun logCheck(packageName: String, hadContext: Boolean, registrationStatus: Boolean, result: Boolean) {
+        val record = CheckRecord(
+            timestamp = System.currentTimeMillis(),
+            packageName = packageName,
+            hadContext = hadContext,
+            registrationStatus = registrationStatus,
+            result = result,
+            threadName = Thread.currentThread().name,
+            stackTrace = Thread.currentThread().stackTrace.take(5).joinToString("\n") { "  at $it" }
+        )
+
+        checkHistory.add(record)
+        if (checkHistory.size > MAX_HISTORY) {
+            checkHistory.removeAt(0)
+        }
+    }
+
+    /**
+     * Dump check history for debugging
+     */
+    fun dumpCheckHistory(): String {
+        return buildString {
+            appendLine("=== Check History (last ${checkHistory.size} checks) ===")
+            checkHistory.forEach { record ->
+                appendLine("Timestamp: ${record.timestamp}")
+                appendLine("Package: ${record.packageName}")
+                appendLine("Had Context: ${record.hadContext}")
+                appendLine("Registration: ${record.registrationStatus}")
+                appendLine("Result: ${record.result}")
+                appendLine("Thread: ${record.threadName}")
+                appendLine("Stack trace:")
+                appendLine(record.stackTrace)
+                appendLine("---")
+            }
+        }
+    }
+
+    /**
+     * Get detailed diagnostic information
+     */
+    fun getDiagnosticInfo(context: Context): String {
+        return buildString {
+            appendLine("=== AllowedApps Diagnostic Info ===")
+            appendLine("Cache Status: ${getCacheStatus()}")
+            appendLine("Listener Count: ${registrationListeners.size}")
+
+            try {
+                val freshStatus = SayphRegistrationChecker.isDeviceRegistered(context)
+                appendLine("Fresh Registration Check: $freshStatus")
+            } catch (e: Exception) {
+                appendLine("Fresh Registration Check: ERROR - ${e.message}")
+            }
+
+            appendLine("Cached Registration: $cachedRegistrationStatus")
+            appendLine("Last Check: ${System.currentTimeMillis() - lastRegistrationCheck}ms ago")
+            appendLine("Allowed Packages: ${allowedBasePackages.size}")
+            appendLine("\nRecent check history:")
+            appendLine(dumpCheckHistory())
+        }
+    }
+
+    /**
+     * Wrapper to ensure SayphRegistrationChecker is called safely
+     */
+    private fun safeCheckRegistration(context: Context): Boolean {
+        return try {
+            val result = SayphRegistrationChecker.isDeviceRegistered(context)
+            android.util.Log.d("AllowedApps", "SayphRegistrationChecker returned: $result")
+            result
+        } catch (e: Exception) {
+            android.util.Log.e("AllowedApps", "Error checking registration status", e)
+            // Fail closed - if we can't check, assume not registered
+            false
+        }
+    }
+
+    /**
+     * Test method to verify cache and registration checker are in sync
+     */
+    fun verifySynchronization(context: Context): Boolean {
+        val cachedStatus = getRegistrationStatusFromCache()
+        val freshStatus = safeCheckRegistration(context)
+        val cacheAge = System.currentTimeMillis() - lastRegistrationCheck
+
+        val inSync = cachedStatus == freshStatus || cacheAge > CACHE_DURATION_MS
+
+        android.util.Log.d("AllowedApps", "Synchronization check:")
+        android.util.Log.d("AllowedApps", "  Cached: $cachedStatus")
+        android.util.Log.d("AllowedApps", "  Fresh: $freshStatus")
+        android.util.Log.d("AllowedApps", "  Cache age: ${cacheAge}ms")
+        android.util.Log.d("AllowedApps", "  In sync: $inSync")
+
+        if (!inSync) {
+            android.util.Log.w("AllowedApps", "WARNING: Cache and fresh check are out of sync!")
+        }
+
+        return inSync
     }
 }

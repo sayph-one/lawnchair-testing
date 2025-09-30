@@ -37,6 +37,7 @@ import com.android.launcher3.LauncherSettings;
 
 
 import android.appwidget.AppWidgetProviderInfo;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -476,10 +477,40 @@ public class LoaderTask implements Runnable {
 
                 while (!mStopped && c.moveToNext()) {
                     String packageName = c.getIntentComponentPackage();
-                    if (packageName != null && !app.lawnchair.util.AllowedApps.INSTANCE.getAllowedPackages().contains(packageName)) {
-                        // Skip loading this item if its package isn't allowed
+                    int id = c.getInt(c.getColumnIndexOrThrow(LauncherSettings.Favorites._ID));
+                    int itemType = c.getInt(c.getColumnIndexOrThrow(LauncherSettings.Favorites.ITEM_TYPE));
+                    int container = c.getInt(c.getColumnIndexOrThrow(LauncherSettings.Favorites.CONTAINER));
+
+                    android.util.Log.e("LoaderTaskDebug", "Loading item: id=" + id + " pkg=" + packageName +
+                        " itemType=" + itemType + " container=" + container);
+
+                    // Filter by allowed packages
+                    if (packageName != null && !app.lawnchair.util.AllowedApps.INSTANCE.isInAllowedList(packageName)) {
                         continue;
                     }
+
+                    // Check for duplicates - if this package already exists in workspace, skip
+                    if (packageName != null && itemType == LauncherSettings.Favorites.ITEM_TYPE_APPLICATION) {
+                        boolean isDuplicate = false;
+                        int size = mBgDataModel.itemsIdMap.size();
+                        for (int i = 0; i < size; i++) {
+                            ItemInfo existing = mBgDataModel.itemsIdMap.valueAt(i);
+                            if (existing instanceof WorkspaceItemInfo) {
+                                ComponentName existingComponent = ((WorkspaceItemInfo) existing).getTargetComponent();
+                                if (existingComponent != null &&
+                                    packageName.equals(existingComponent.getPackageName()) &&
+                                    container == existing.container) {
+                                    android.util.Log.w("LoaderTaskDebug", "Skipping duplicate: id=" + id + " pkg=" + packageName);
+                                    isDuplicate = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (isDuplicate) {
+                            continue;
+                        }
+                    }
+
                     itemProcessor.processItem();
                 }
                 tryLoadWorkspaceIconsInBulk(iconRequestInfos);

@@ -11,6 +11,17 @@ import com.android.launcher3.logging.StatsLogManager.LauncherEvent
 import com.android.launcher3.views.OptionsPopupView.OptionItem
 import com.patrykmichalik.opto.core.firstBlocking
 import com.patrykmichalik.opto.core.setBlocking
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.widget.Toast
+import app.lawnchair.util.AllowedApps
+import app.lawnchair.util.DebugRegistrationHelper
+import com.android.launcher3.BuildConfig
 
 object LauncherOptionsPopup {
     val DEFAULT_ORDER = listOf(
@@ -123,7 +134,79 @@ object LauncherOptionsPopup {
             .mapNotNull { optionsList[it.identifier] }
             .forEach { options.add(it) }
 
+        // ADD THIS - Debug option (only in debug builds)
+        if (BuildConfig.DEBUG) {
+            options.add(
+                OptionItem(
+                    "Debug Registration",
+                    launcher.getDrawable(android.R.drawable.ic_menu_info_details),
+                    LauncherEvent.IGNORE
+                ) { view ->
+                    showDebugRegistration(view)
+                    true
+                }
+            )
+        }
+
         return options
+    }
+
+    private fun showDebugRegistration(view: View) {
+        val launcher = Launcher.getLauncher(view.context)
+        Log.d("LauncherOptionsPopup", "=== DEBUG REGISTRATION SELECTED ===")
+
+        try {
+            // Run diagnostics
+            DebugRegistrationHelper.logRegistrationState(launcher)
+            val diagnosticInfo = AllowedApps.getDiagnosticInfo(launcher)
+            Log.d("LauncherOptionsPopup", diagnosticInfo)
+
+            // Get status
+            val inSync = AllowedApps.verifySynchronization(launcher)
+            val cacheStatus = AllowedApps.getCacheStatus()
+            val needsReg = AllowedApps.needsRegistration(launcher)
+
+            val message = """
+            Cache Status:
+            $cacheStatus
+
+            Needs Registration: $needsReg
+            Synchronization: ${if (inSync) "✓ OK" else "✗ PROBLEM"}
+
+            Check logcat for full details:
+            adb logcat -s AllowedApps:* RegistrationDebug:*
+        """.trimIndent()
+
+            AlertDialog.Builder(launcher)
+                .setTitle("Debug Registration")
+                .setMessage(message)
+                .setPositiveButton("Force Refresh") { _, _ ->
+                    Log.d("LauncherOptionsPopup", "User triggered force refresh")
+                    AllowedApps.refreshRegistrationStatus(launcher)
+
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        val newStatus = AllowedApps.getCacheStatus()
+                        Toast.makeText(
+                            launcher,
+                            "Refreshed: $newStatus",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }, 500)
+                }
+                .setNeutralButton("Copy Log") { _, _ ->
+                    val clipboard = launcher.getSystemService(Context.CLIPBOARD_SERVICE)
+                        as ClipboardManager
+                    val clip = ClipData.newPlainText("Debug Log", diagnosticInfo)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(launcher, "Debug log copied", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Close", null)
+                .show()
+
+        } catch (e: Exception) {
+            Log.e("LauncherOptionsPopup", "Error showing debug dialog", e)
+            Toast.makeText(launcher, "Debug error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     fun getMetadataForOption(identifier: String): LauncherOptionMetadata {
