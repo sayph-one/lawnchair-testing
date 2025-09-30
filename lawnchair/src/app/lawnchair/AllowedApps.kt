@@ -10,7 +10,9 @@ import java.util.Collections
 object AllowedApps {
     private val allowedBasePackages = listOf(
         "com.simplemobiletools.dialer",
+        "com.simplemobiletools.dialer.debug",
         "com.simplemobiletools.smsmessenger",
+        "com.simplemobiletools.smsmessenger.debug",
         "com.sec.android.gallery3d",
         "com.sec.android.app.camera",
         "com.sec.factory.camera",

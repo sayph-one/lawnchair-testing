@@ -35,6 +35,9 @@ import android.app.blob.BlobStoreManager;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.LauncherActivityInfo;
+import android.content.pm.LauncherApps;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 import android.content.res.Resources;
@@ -84,8 +87,12 @@ import com.android.launcher3.widget.LauncherWidgetHolder;
 
 import org.xmlpull.v1.XmlPullParser;
 
+import java.io.File;
 import java.io.InputStream;
 import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import app.lawnchair.LawnchairApp;
 import app.lawnchair.LawnchairAppKt;
@@ -514,7 +521,7 @@ public class ModelDbController {
                         int workspaceResId = partner.getXmlResId(RES_PARTNER_DEFAULT_LAYOUT);
                         if (workspaceResId != 0) {
                             loader = new DefaultLayoutParser(mContext, widgetHolder,
-                                    mOpenHelper, partner.getResources(), workspaceResId);
+                                mOpenHelper, partner.getResources(), workspaceResId);
                         }
                     }
                 }
@@ -524,21 +531,107 @@ public class ModelDbController {
                     loader = getDefaultLayoutParser(widgetHolder);
                 }
 
-                // There might be some partially restored DB items, due to buggy restore logic
-                // in
-                // previous versions of launcher.
                 mOpenHelper.createEmptyDB(mOpenHelper.getWritableDatabase());
-                // Populate favorites table with initial favorites
                 if ((mOpenHelper.loadFavorites(mOpenHelper.getWritableDatabase(), loader) <= 0)
-                        && usingExternallyProvidedLayout) {
-                    // Unable to load external layout. Cleanup and load the internal layout.
+                    && usingExternallyProvidedLayout) {
                     mOpenHelper.createEmptyDB(mOpenHelper.getWritableDatabase());
                     mOpenHelper.loadFavorites(mOpenHelper.getWritableDatabase(),
-                            getDefaultLayoutParser(widgetHolder));
+                        getDefaultLayoutParser(widgetHolder));
                 }
+
                 clearFlagEmptyDbCreated();
+                createDeckModeBackup();
+                addAllowedAppsToWorkspace();
+
             } finally {
                 widgetHolder.destroy();
+            }
+        }
+    }
+
+    private void createDeckModeBackup() {
+        try {
+            InvariantDeviceProfile idp = InvariantDeviceProfile.INSTANCE.get(mContext);
+            File dbFile = mContext.getDatabasePath(idp.dbFile);
+            File backupDb = new File(dbFile.getParent(), "bk_" + idp.dbFile);
+            File journal = new File(dbFile.getParent(), idp.dbFile + "-journal");
+            File backupJournal = new File(dbFile.getParent(), "bk_" + idp.dbFile + "-journal");
+
+            java.nio.file.Files.copy(
+                dbFile.toPath(),
+                backupDb.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+
+            if (journal.exists()) {
+                java.nio.file.Files.copy(
+                    journal.toPath(),
+                    backupJournal.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                );
+            }
+        } catch (Exception e) {
+            Log.e("DeckDebug", "Failed to create backup", e);
+        }
+    }
+
+    private void addAllowedAppsToWorkspace() {
+
+        LauncherApps launcherApps = mContext.getSystemService(LauncherApps.class);
+        if (launcherApps == null) {
+            return;
+        }
+
+        UserHandle user = Process.myUserHandle();
+
+        // Collect all activities first
+        List<LauncherActivityInfo> allActivities = new ArrayList<>();
+
+        for (String packageName : app.lawnchair.util.AllowedApps.INSTANCE.getAllowedPackages()) {
+            if (!app.lawnchair.util.AllowedApps.INSTANCE.isAllowed(packageName, mContext)) {
+                continue;
+            }
+
+            List<LauncherActivityInfo> activities = launcherApps.getActivityList(packageName, user);
+            allActivities.addAll(activities);
+        }
+
+        // Sort alphabetically by label
+        Collections.sort(allActivities, (a, b) ->
+            a.getLabel().toString().compareToIgnoreCase(b.getLabel().toString())
+        );
+        
+        // Now insert them
+        int screen = 1;
+        int cellX = 0;
+        int cellY = 0;
+
+        for (LauncherActivityInfo activity : allActivities) {
+            ContentValues values = new ContentValues();
+            values.put(LauncherSettings.Favorites.TITLE, activity.getLabel().toString());
+            values.put(LauncherSettings.Favorites.INTENT,
+                new Intent(Intent.ACTION_MAIN)
+                    .addCategory(Intent.CATEGORY_LAUNCHER)
+                    .setComponent(activity.getComponentName())
+                    .toUri(0));
+            values.put(LauncherSettings.Favorites.ITEM_TYPE, LauncherSettings.Favorites.ITEM_TYPE_APPLICATION);
+            values.put(LauncherSettings.Favorites.CONTAINER, LauncherSettings.Favorites.CONTAINER_DESKTOP);
+            values.put(LauncherSettings.Favorites.SCREEN, screen);
+            values.put(LauncherSettings.Favorites.CELLX, cellX);
+            values.put(LauncherSettings.Favorites.CELLY, cellY);
+            values.put(LauncherSettings.Favorites.SPANX, 1);
+            values.put(LauncherSettings.Favorites.SPANY, 1);
+
+            long result = mOpenHelper.getWritableDatabase().insert(LauncherSettings.Favorites.TABLE_NAME, null, values);
+
+            cellX++;
+            if (cellX >= 4) {
+                cellX = 0;
+                cellY++;
+                if (cellY >= 5) {
+                    cellY = 0;
+                    screen++;
+                }
             }
         }
     }

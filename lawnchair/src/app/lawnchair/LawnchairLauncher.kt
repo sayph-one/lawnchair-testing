@@ -26,6 +26,7 @@ import android.graphics.Color
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.util.Log
 import android.util.Pair
 import android.view.Display
 import android.view.View
@@ -41,6 +42,7 @@ import app.lawnchair.LawnchairApp.Companion.showQuickstepWarningIfNecessary
 import app.lawnchair.compat.LawnchairQuickstepCompat
 import app.lawnchair.data.AppDatabase
 import app.lawnchair.data.wallpaper.service.WallpaperService
+import app.lawnchair.deck.LawndeckManager
 import app.lawnchair.factory.LawnchairWidgetHolder
 import app.lawnchair.gestures.GestureController
 import app.lawnchair.gestures.VerticalSwipeTouchController
@@ -93,10 +95,13 @@ import com.patrykmichalik.opto.core.firstBlocking
 import com.patrykmichalik.opto.core.onEach
 import dev.kdrag0n.monet.theme.ColorScheme
 import java.util.stream.Stream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class LawnchairLauncher : QuickstepLauncher() {
     private val defaultOverlay by unsafeLazy { OverlayCallbackImpl(this) }
@@ -255,6 +260,18 @@ class LawnchairLauncher : QuickstepLauncher() {
         reloadIconsIfNeeded()
 
         AppDatabase.INSTANCE.get(this).checkpointSync()
+
+        val deckPrefs = getSharedPreferences("lawndeck_state", Context.MODE_PRIVATE)
+        Log.e("DeckDebug", "First launch check: " + deckPrefs.getBoolean("is_first_launch", true))
+
+        if (deckPrefs.getBoolean("is_first_launch", true)) {
+            lifecycleScope.launch {
+                preferenceManager2.deckLayout.set(true)
+                preferenceManager2.swipeUpGestureHandler.set(GestureHandlerConfig.NoOp)
+                prefs.addIconToHome.set(true)
+                deckPrefs.edit().putBoolean("is_first_launch", false).apply()
+            }
+        }
 
         // ADD REGISTRATION OVERLAY INITIALIZATION HERE
         initializeRegistrationOverlay()

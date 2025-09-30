@@ -63,6 +63,12 @@ class LawnchairApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        val prefs = getSharedPreferences("lawndeck_state", Context.MODE_PRIVATE)
+        if (!prefs.contains("is_first_launch")) {
+            prefs.edit().putBoolean("is_first_launch", true).apply()
+        }
+
         instance = this
         QuickStepContract.sRecentsDisabled = !recentsEnabled
         Flowerpot.Manager.getInstance(this)
