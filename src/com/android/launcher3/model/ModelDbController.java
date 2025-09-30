@@ -575,36 +575,98 @@ public class ModelDbController {
         }
     }
 
+    /**
+     * Reload workspace apps based on current registration status
+     */
+    @WorkerThread
+    public void reloadWorkspaceApps() {
+        Log.d("DeckDebug", "=== reloadWorkspaceApps() CALLED ===");
+        createDbIfNotExists();
+
+        try {
+            // Check registration status
+            boolean isRegistered = app.lawnchair.util.SayphRegistrationChecker.INSTANCE.isDeviceRegistered(mContext);
+            Log.d("DeckDebug", "Registration status in reloadWorkspaceApps: " + isRegistered);
+
+            SQLiteDatabase db = mOpenHelper.getWritableDatabase();
+
+            // Delete all app items from workspace
+            int deletedCount = db.delete(
+                LauncherSettings.Favorites.TABLE_NAME,
+                LauncherSettings.Favorites.ITEM_TYPE + " = ? AND " +
+                    LauncherSettings.Favorites.CONTAINER + " = ?",
+                new String[] {
+                    String.valueOf(LauncherSettings.Favorites.ITEM_TYPE_APPLICATION),
+                    String.valueOf(LauncherSettings.Favorites.CONTAINER_DESKTOP)
+                }
+            );
+
+            Log.d("DeckDebug", "Deleted " + deletedCount + " workspace apps");
+
+            // Re-add apps based on current registration status
+            addAllowedAppsToWorkspace();
+
+            Log.d("DeckDebug", "Workspace apps reloaded - calling onAddOrDeleteOp");
+            onAddOrDeleteOp(db);
+
+        } catch (Exception e) {
+            Log.e("DeckDebug", "Failed to reload workspace apps", e);
+        }
+    }
+
     private void addAllowedAppsToWorkspace() {
+        Log.d("DeckDebug", "=== addAllowedAppsToWorkspace() CALLED ===");
+
+        // Check registration status before adding apps
+        boolean isRegistered = app.lawnchair.util.SayphRegistrationChecker.INSTANCE.isDeviceRegistered(mContext);
+        Log.d("DeckDebug", "Registration check in addAllowedAppsToWorkspace: " + isRegistered);
+
+        if (!isRegistered) {
+            Log.d("DeckDebug", "Device not registered - skipping app addition to workspace");
+            return;
+        }
+
+        Log.d("DeckDebug", "Device IS registered - proceeding to add apps");
 
         LauncherApps launcherApps = mContext.getSystemService(LauncherApps.class);
         if (launcherApps == null) {
+            Log.e("DeckDebug", "LauncherApps service is null!");
             return;
         }
 
         UserHandle user = Process.myUserHandle();
-
-        // Collect all activities first
         List<LauncherActivityInfo> allActivities = new ArrayList<>();
 
+        Log.d("DeckDebug", "Checking allowed packages...");
         for (String packageName : app.lawnchair.util.AllowedApps.INSTANCE.getAllowedPackages()) {
+            Log.d("DeckDebug", "  Checking package: " + packageName);
+
             if (!app.lawnchair.util.AllowedApps.INSTANCE.isAllowed(packageName, mContext)) {
+                Log.d("DeckDebug", "    Package not allowed, skipping");
                 continue;
             }
 
             List<LauncherActivityInfo> activities = launcherApps.getActivityList(packageName, user);
+            Log.d("DeckDebug", "    Found " + activities.size() + " activities");
             allActivities.addAll(activities);
         }
 
-        // Sort alphabetically by label
+        Log.d("DeckDebug", "Total activities to add: " + allActivities.size());
+
+        if (allActivities.isEmpty()) {
+            Log.w("DeckDebug", "No activities found to add!");
+            return;
+        }
+
+        // Sort and insert
         Collections.sort(allActivities, (a, b) ->
             a.getLabel().toString().compareToIgnoreCase(b.getLabel().toString())
         );
-        
-        // Now insert them
+
         int screen = 1;
         int cellX = 0;
         int cellY = 0;
+        int insertedCount = 0;
 
         for (LauncherActivityInfo activity : allActivities) {
             ContentValues values = new ContentValues();
@@ -624,6 +686,13 @@ public class ModelDbController {
 
             long result = mOpenHelper.getWritableDatabase().insert(LauncherSettings.Favorites.TABLE_NAME, null, values);
 
+            if (result > 0) {
+                insertedCount++;
+                Log.d("DeckDebug", "  Inserted: " + activity.getLabel() + " (id=" + result + ")");
+            } else {
+                Log.e("DeckDebug", "  Failed to insert: " + activity.getLabel());
+            }
+
             cellX++;
             if (cellX >= 4) {
                 cellX = 0;
@@ -634,6 +703,8 @@ public class ModelDbController {
                 }
             }
         }
+
+        Log.d("DeckDebug", "Successfully inserted " + insertedCount + " apps");
     }
 
     /**

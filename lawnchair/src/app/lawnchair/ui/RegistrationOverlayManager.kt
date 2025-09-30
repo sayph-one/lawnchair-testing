@@ -44,12 +44,13 @@ class RegistrationOverlayManager(
         if (needsRegistration && !isOverlayVisible) {
             android.util.Log.d("RegistrationOverlay", "Showing registration overlay")
             showRegistrationOverlay()
+            // TRIGGER CALLBACK WHEN BECOMING UNREGISTERED
+            android.util.Log.d("RegistrationOverlay", "Device unregistered - triggering callback")
+            onRegistrationChanged?.invoke()
         } else if (!needsRegistration && isOverlayVisible) {
             android.util.Log.d("RegistrationOverlay", "Hiding registration overlay")
             hideRegistrationOverlay()
-            // ADD THIS: Trigger refresh when overlay is hidden (device registered)
-            android.util.Log.d("RegistrationOverlay", "Device registered - triggering callback")
-            onRegistrationChanged?.invoke()
+            // Callback already triggered in hideRegistrationOverlay()
         } else {
             android.util.Log.d("RegistrationOverlay", "No overlay change needed")
         }
@@ -226,6 +227,10 @@ class RegistrationOverlayManager(
             parentContainer.removeView(overlay)
             overlayView = null
             isOverlayVisible = false
+
+            // Trigger the callback when overlay is hidden (device registered)
+            android.util.Log.d("RegistrationOverlay", "Overlay hidden - triggering registration changed callback")
+            onRegistrationChanged?.invoke()
         }
     }
 

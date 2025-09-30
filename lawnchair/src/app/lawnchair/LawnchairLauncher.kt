@@ -515,41 +515,26 @@ class LawnchairLauncher : QuickstepLauncher() {
 
     private fun initializeRegistrationOverlay() {
         try {
-            // Update registration cache immediately
             AllowedApps.updateRegistrationCache(this)
-
-            // Debug the current state
             app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this)
 
-            // Initialize overlay manager with dragLayer as the container
-            // dragLayer is the top-level container in Lawnchair that overlays everything
             registrationOverlayManager = RegistrationOverlayManager(this, dragLayer)
 
+            // THIS IS THE KEY CHANGE - use the new method
             registrationOverlayManager?.onRegistrationChanged = {
-                android.util.Log.d("LawnchairLauncher", "Registration changed callback - refreshing apps")
-                refreshAppsList()
+                android.util.Log.d("LawnchairLauncher", "Registration changed - triggering workspace reload")
+                reloadWorkspaceOnRegistrationChange()  // Call the new method
             }
 
-            // Debug overlay state
-            app.lawnchair.util.DebugRegistrationHelper.logOverlayState(registrationOverlayManager)
-
-            // Register broadcast receiver for immediate status updates
             statusReceiver = AllowedApps.registerStatusReceiver(this)
 
-            // Add registration listener that also refreshes apps
             AllowedApps.addRegistrationListener {
                 android.util.Log.d("LawnchairLauncher", "=== REGISTRATION LISTENER TRIGGERED ===")
-                android.util.Log.d("LawnchairLauncher", "Registration status changed - updating overlay and refreshing apps")
                 registrationOverlayManager?.updateOverlayVisibility()
-                refreshAppsList()
+                reloadWorkspaceOnRegistrationChange()  // Call the new method here too
             }
-            android.util.Log.d("LawnchairLauncher", "Registration listener added successfully")
 
-
-            // Initial check - this will show overlay immediately if needed
             registrationOverlayManager?.updateOverlayVisibility()
-
-            // Start periodic debugging
             startPeriodicDebugCheck()
 
         } catch (e: Exception) {
@@ -584,6 +569,32 @@ class LawnchairLauncher : QuickstepLauncher() {
             obj.javaClass.getMethod(methodName) != null
         } catch (e: NoSuchMethodException) {
             false
+        }
+    }
+
+    /**
+     * Reload workspace when registration status changes
+     */
+    private fun reloadWorkspaceOnRegistrationChange() {
+        android.util.Log.e("LawnchairLauncher", "!!! reloadWorkspaceOnRegistrationChange() CALLED !!!")
+        try {
+            android.util.Log.d("LawnchairLauncher", "=== REGISTRATION CHANGED - RELOADING WORKSPACE ===")
+
+            lifecycleScope.launch {
+                // Do database operations on IO thread
+                withContext(Dispatchers.IO) {
+                    android.util.Log.d("LawnchairLauncher", "Reloading workspace apps in database")
+                    model?.modelDbController?.reloadWorkspaceApps()
+                }
+
+                // Reload the model on main thread
+                withContext(Dispatchers.Main) {
+                    android.util.Log.d("LawnchairLauncher", "Forcing model reload")
+                    model?.forceReload()
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("LawnchairLauncher", "Failed to reload workspace on registration change", e)
         }
     }
 
