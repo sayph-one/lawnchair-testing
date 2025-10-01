@@ -617,7 +617,6 @@ public class ModelDbController {
     private void addAllowedAppsToWorkspace() {
         Log.d("DeckDebug", "=== addAllowedAppsToWorkspace() CALLED ===");
 
-        // Check registration status before adding apps
         boolean isRegistered = app.lawnchair.util.SayphRegistrationChecker.INSTANCE.isDeviceRegistered(mContext);
         Log.d("DeckDebug", "Registration check in addAllowedAppsToWorkspace: " + isRegistered);
 
@@ -658,14 +657,16 @@ public class ModelDbController {
             return;
         }
 
-        // Sort and insert
+        // Sort alphabetically
         Collections.sort(allActivities, (a, b) ->
             a.getLabel().toString().compareToIgnoreCase(b.getLabel().toString())
         );
 
-        int screen = 1;
+        SQLiteDatabase db = mOpenHelper.getWritableDatabase();
+
+        int screen = 0;
         int cellX = 0;
-        int cellY = 0;
+        int cellY = 1;  // Start at row 1 to leave row 0 for "At a Glance"
         int insertedCount = 0;
 
         for (LauncherActivityInfo activity : allActivities) {
@@ -684,11 +685,11 @@ public class ModelDbController {
             values.put(LauncherSettings.Favorites.SPANX, 1);
             values.put(LauncherSettings.Favorites.SPANY, 1);
 
-            long result = mOpenHelper.getWritableDatabase().insert(LauncherSettings.Favorites.TABLE_NAME, null, values);
+            long result = db.insert(LauncherSettings.Favorites.TABLE_NAME, null, values);
 
             if (result > 0) {
                 insertedCount++;
-                Log.d("DeckDebug", "  Inserted: " + activity.getLabel() + " (id=" + result + ")");
+                Log.d("DeckDebug", "  Inserted: " + activity.getLabel() + " at (" + cellX + "," + cellY + ") screen " + screen);
             } else {
                 Log.e("DeckDebug", "  Failed to insert: " + activity.getLabel());
             }

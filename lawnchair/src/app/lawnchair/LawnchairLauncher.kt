@@ -262,14 +262,38 @@ class LawnchairLauncher : QuickstepLauncher() {
         AppDatabase.INSTANCE.get(this).checkpointSync()
 
         val deckPrefs = getSharedPreferences("lawndeck_state", Context.MODE_PRIVATE)
-        Log.e("DeckDebug", "First launch check: " + deckPrefs.getBoolean("is_first_launch", true))
+        val currentVersionCode = packageManager.getPackageInfo(packageName, 0).versionCode.toString()
+        val lastVersionCode = deckPrefs.getString("last_version_code", "")
 
-        if (deckPrefs.getBoolean("is_first_launch", true)) {
+        Log.e("DeckDebug", "Current version: $currentVersionCode, Last version: $lastVersionCode")
+
+        // Apply deck mode if version has changed
+        if (currentVersionCode != lastVersionCode) {
             lifecycleScope.launch {
+                Log.e("DeckDebug", "Version changed - applying deck mode configuration")
+
                 preferenceManager2.deckLayout.set(true)
                 preferenceManager2.swipeUpGestureHandler.set(GestureHandlerConfig.NoOp)
                 prefs.addIconToHome.set(true)
-                deckPrefs.edit().putBoolean("is_first_launch", false).apply()
+
+                // Force workspace reload to apply deck layout
+                withContext(Dispatchers.IO) {
+                    try {
+                        Log.e("DeckDebug", "Clearing and reloading workspace for deck mode")
+                        model?.modelDbController?.createEmptyDB()
+                        model?.modelDbController?.loadDefaultFavoritesIfNecessary()
+                    } catch (e: Exception) {
+                        Log.e("DeckDebug", "Failed to reload workspace", e)
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    model?.forceReload()
+                }
+
+                deckPrefs.edit()
+                    .putString("last_version_code", currentVersionCode)
+                    .apply()
             }
         }
 
