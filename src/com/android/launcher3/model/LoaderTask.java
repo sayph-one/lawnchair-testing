@@ -498,8 +498,7 @@ public class LoaderTask implements Runnable {
                             if (existing instanceof WorkspaceItemInfo) {
                                 ComponentName existingComponent = ((WorkspaceItemInfo) existing).getTargetComponent();
                                 if (existingComponent != null &&
-                                    packageName.equals(existingComponent.getPackageName()) &&
-                                    container == existing.container) {
+                                    packageName.equals(existingComponent.getPackageName())) {  // Remove container check
                                     android.util.Log.w("LoaderTaskDebug", "Skipping duplicate: id=" + id + " pkg=" + packageName);
                                     isDuplicate = true;
                                     break;

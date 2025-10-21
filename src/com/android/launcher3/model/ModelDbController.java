@@ -298,12 +298,14 @@ public class ModelDbController {
             if (restoreEventLogger != null) {
                 sendMetricsForFailedMigration(restoreEventLogger, getDb());
             }
-            FileLog.d(TAG, "Migration failed: resetting launcher database");
-            createEmptyDB();
-            LauncherPrefs.get(mContext).putSync(
-                    getEmptyDbCreatedKey(mOpenHelper.getDatabaseName()).to(true));
+            FileLog.d(TAG, "Migration failed: preserving workspace data instead of resetting");
 
-            // Write the grid state to avoid another migration
+            // DON'T clear the database - preserve user's workspace
+            // createEmptyDB();
+            // LauncherPrefs.get(mContext).putSync(
+            //         getEmptyDbCreatedKey(mOpenHelper.getDatabaseName()).to(true));
+
+            // Write the grid state to avoid another migration attempt
             new DeviceGridState(LauncherAppState.getIDP(mContext)).writeToPrefs(mContext);
         }
     }
@@ -618,10 +620,10 @@ public class ModelDbController {
         Log.d("DeckDebug", "=== addAllowedAppsToWorkspace() CALLED ===");
 
         boolean isRegistered = app.lawnchair.util.SayphRegistrationChecker.INSTANCE.isDeviceRegistered(mContext);
-        Log.d("DeckDebug", "Registration check in addAllowedAppsToWorkspace: " + isRegistered);
+        Log.d("DeckDebug", "Registration check: " + isRegistered);
 
         if (!isRegistered) {
-            Log.d("DeckDebug", "Device not registered - skipping app addition to workspace");
+            Log.d("DeckDebug", "Device not registered - skipping");
             return;
         }
 
@@ -636,40 +638,83 @@ public class ModelDbController {
         UserHandle user = Process.myUserHandle();
         List<LauncherActivityInfo> allActivities = new ArrayList<>();
 
-        Log.d("DeckDebug", "Checking allowed packages...");
         for (String packageName : app.lawnchair.util.AllowedApps.INSTANCE.getAllowedPackages()) {
-            Log.d("DeckDebug", "  Checking package: " + packageName);
-
             if (!app.lawnchair.util.AllowedApps.INSTANCE.isAllowed(packageName, mContext)) {
-                Log.d("DeckDebug", "    Package not allowed, skipping");
                 continue;
             }
-
             List<LauncherActivityInfo> activities = launcherApps.getActivityList(packageName, user);
-            Log.d("DeckDebug", "    Found " + activities.size() + " activities");
             allActivities.addAll(activities);
         }
 
         Log.d("DeckDebug", "Total activities to add: " + allActivities.size());
 
         if (allActivities.isEmpty()) {
-            Log.w("DeckDebug", "No activities found to add!");
             return;
         }
 
-        // Sort alphabetically
         Collections.sort(allActivities, (a, b) ->
             a.getLabel().toString().compareToIgnoreCase(b.getLabel().toString())
         );
 
+        // Check for occupied cells on screen 0
         SQLiteDatabase db = mOpenHelper.getWritableDatabase();
+        Cursor cursor = db.query(
+            LauncherSettings.Favorites.TABLE_NAME,
+            new String[] {
+                LauncherSettings.Favorites.CELLX,
+                LauncherSettings.Favorites.CELLY,
+                LauncherSettings.Favorites.SPANX,
+                LauncherSettings.Favorites.SPANY
+            },
+            LauncherSettings.Favorites.SCREEN + " = ? AND " +
+                LauncherSettings.Favorites.CONTAINER + " = ?",
+            new String[] {"0", String.valueOf(LauncherSettings.Favorites.CONTAINER_DESKTOP)},
+            null, null, null
+        );
+
+        java.util.Set<String> occupiedCells = new java.util.HashSet<>();
+        while (cursor.moveToNext()) {
+            int cellX = cursor.getInt(0);
+            int cellY = cursor.getInt(1);
+            int spanX = cursor.getInt(2);
+            int spanY = cursor.getInt(3);
+
+            // Mark all cells occupied by widgets (including their span)
+            for (int x = cellX; x < cellX + spanX && x < 4; x++) {
+                for (int y = cellY; y < cellY + spanY && y < 5; y++) {
+                    occupiedCells.add(x + "," + y);
+                }
+            }
+        }
+        cursor.close();
+
+        Log.d("DeckDebug", "Occupied cells on screen 0: " + occupiedCells.size());
 
         int screen = 0;
         int cellX = 0;
-        int cellY = 1;  // Start at row 1 to leave row 0 for "At a Glance"
+        int cellY = 1;  // Start at row 1
         int insertedCount = 0;
 
         for (LauncherActivityInfo activity : allActivities) {
+            // Find next available cell
+            int attempts = 0;
+            while (occupiedCells.contains(cellX + "," + cellY) && attempts < 100) {
+                cellX++;
+                if (cellX >= 4) {
+                    cellX = 0;
+                    cellY++;
+                    if (cellY >= 5) {
+                        cellY = 0;
+                        screen++;
+                        // Clear occupied check for screens beyond 0
+                        if (screen > 0) {
+                            occupiedCells.clear();
+                        }
+                    }
+                }
+                attempts++;
+            }
+
             ContentValues values = new ContentValues();
             values.put(LauncherSettings.Favorites.TITLE, activity.getLabel().toString());
             values.put(LauncherSettings.Favorites.INTENT,
@@ -689,11 +734,10 @@ public class ModelDbController {
 
             if (result > 0) {
                 insertedCount++;
-                Log.d("DeckDebug", "  Inserted: " + activity.getLabel() + " at (" + cellX + "," + cellY + ") screen " + screen);
-            } else {
-                Log.e("DeckDebug", "  Failed to insert: " + activity.getLabel());
+                Log.d("DeckDebug", "Inserted: " + activity.getLabel() + " at (" + cellX + "," + cellY + ") screen " + screen);
             }
 
+            // Move to next cell
             cellX++;
             if (cellX >= 4) {
                 cellX = 0;

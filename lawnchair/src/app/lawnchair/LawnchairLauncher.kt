@@ -264,32 +264,46 @@ class LawnchairLauncher : QuickstepLauncher() {
         val deckPrefs = getSharedPreferences("lawndeck_state", Context.MODE_PRIVATE)
         val currentVersionCode = packageManager.getPackageInfo(packageName, 0).versionCode.toString()
         val lastVersionCode = deckPrefs.getString("last_version_code", "")
+        val deckModeInitialized = deckPrefs.getBoolean("deck_mode_initialized", false)
 
         Log.e("DeckDebug", "Current version: $currentVersionCode, Last version: $lastVersionCode")
 
         // Apply deck mode if version has changed
-        if (currentVersionCode != lastVersionCode) {
+        if (!deckModeInitialized) {
             lifecycleScope.launch {
-                Log.e("DeckDebug", "Version changed - applying deck mode configuration")
+                Log.e("DeckDebug", "First install - full deck mode initialization")
 
                 preferenceManager2.deckLayout.set(true)
                 preferenceManager2.swipeUpGestureHandler.set(GestureHandlerConfig.NoOp)
                 prefs.addIconToHome.set(true)
 
-                // Force workspace reload to apply deck layout
                 withContext(Dispatchers.IO) {
                     try {
-                        Log.e("DeckDebug", "Clearing and reloading workspace for deck mode")
+                        Log.e("DeckDebug", "Creating workspace for first install")
                         model?.modelDbController?.createEmptyDB()
                         model?.modelDbController?.loadDefaultFavoritesIfNecessary()
                     } catch (e: Exception) {
-                        Log.e("DeckDebug", "Failed to reload workspace", e)
+                        Log.e("DeckDebug", "Failed to initialize workspace", e)
                     }
                 }
 
                 withContext(Dispatchers.Main) {
                     model?.forceReload()
                 }
+
+                deckPrefs.edit()
+                    .putString("last_version_code", currentVersionCode)
+                    .putBoolean("deck_mode_initialized", true)
+                    .apply()
+            }
+        } else if (currentVersionCode != lastVersionCode) {
+            // Version update - only set preferences, don't rebuild workspace
+            lifecycleScope.launch {
+                Log.e("DeckDebug", "Version update - preserving workspace")
+
+                preferenceManager2.deckLayout.set(true)
+                preferenceManager2.swipeUpGestureHandler.set(GestureHandlerConfig.NoOp)
+                prefs.addIconToHome.set(true)
 
                 deckPrefs.edit()
                     .putString("last_version_code", currentVersionCode)
