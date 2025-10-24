@@ -32,6 +32,7 @@ import static com.android.launcher3.provider.LauncherDbUtils.tableExists;
 
 import android.app.blob.BlobHandle;
 import android.app.blob.BlobStoreManager;
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -613,6 +614,222 @@ public class ModelDbController {
 
         } catch (Exception e) {
             Log.e("DeckDebug", "Failed to reload workspace apps", e);
+        }
+    }
+
+    /**
+     * Add missing allowed apps to workspace without disturbing existing items.
+     * This method compares installed allowed apps against apps already in the workspace,
+     * and adds only the missing ones to the first available free cells.
+     */
+    public void addMissingAllowedAppsToWorkspace() {
+        Log.d("DeckDebug", "=== addMissingAllowedAppsToWorkspace() CALLED ===");
+        createDbIfNotExists();
+
+        try {
+            boolean isRegistered = app.lawnchair.util.SayphRegistrationChecker.INSTANCE.isDeviceRegistered(mContext);
+            Log.d("DeckDebug", "Registration check: " + isRegistered);
+
+            if (!isRegistered) {
+                Log.d("DeckDebug", "Device not registered - skipping");
+                return;
+            }
+
+            SQLiteDatabase db = mOpenHelper.getWritableDatabase();
+
+            // Step 1: Get all apps currently in the workspace
+            java.util.Set<String> appsInWorkspace = new java.util.HashSet<>();
+            Cursor workspaceCursor = db.query(
+                LauncherSettings.Favorites.TABLE_NAME,
+                new String[] { LauncherSettings.Favorites.INTENT },
+                LauncherSettings.Favorites.ITEM_TYPE + " = ? AND " +
+                    LauncherSettings.Favorites.CONTAINER + " = ?",
+                new String[] {
+                    String.valueOf(LauncherSettings.Favorites.ITEM_TYPE_APPLICATION),
+                    String.valueOf(LauncherSettings.Favorites.CONTAINER_DESKTOP)
+                },
+                null, null, null
+            );
+
+            while (workspaceCursor.moveToNext()) {
+                String intentUri = workspaceCursor.getString(0);
+                try {
+                    Intent intent = Intent.parseUri(intentUri, 0);
+                    ComponentName component = intent.getComponent();
+                    if (component != null) {
+                        appsInWorkspace.add(component.flattenToString());
+                    }
+                } catch (Exception e) {
+                    Log.w("DeckDebug", "Failed to parse intent: " + intentUri, e);
+                }
+            }
+            workspaceCursor.close();
+
+            Log.d("DeckDebug", "Apps currently in workspace: " + appsInWorkspace.size());
+
+            // Step 2: Get all allowed apps that are installed
+            LauncherApps launcherApps = mContext.getSystemService(LauncherApps.class);
+            if (launcherApps == null) {
+                Log.e("DeckDebug", "LauncherApps service is null!");
+                return;
+            }
+
+            UserHandle user = Process.myUserHandle();
+            List<LauncherActivityInfo> missingActivities = new ArrayList<>();
+
+            for (String packageName : app.lawnchair.util.AllowedApps.INSTANCE.getAllowedPackages()) {
+                if (!app.lawnchair.util.AllowedApps.INSTANCE.isAllowed(packageName, mContext)) {
+                    continue;
+                }
+                List<LauncherActivityInfo> activities = launcherApps.getActivityList(packageName, user);
+
+                // Only add activities that are NOT already in workspace
+                for (LauncherActivityInfo activity : activities) {
+                    String componentString = activity.getComponentName().flattenToString();
+                    if (!appsInWorkspace.contains(componentString)) {
+                        missingActivities.add(activity);
+                        Log.d("DeckDebug", "Missing app found: " + activity.getLabel() + " (" + componentString + ")");
+                    }
+                }
+            }
+
+            Log.d("DeckDebug", "Missing apps to add: " + missingActivities.size());
+
+            if (missingActivities.isEmpty()) {
+                Log.d("DeckDebug", "No missing apps - workspace is up to date");
+                return;
+            }
+
+            // Sort missing activities alphabetically
+            Collections.sort(missingActivities, (a, b) ->
+                a.getLabel().toString().compareToIgnoreCase(b.getLabel().toString())
+            );
+
+            // Step 3: Find occupied cells across all screens
+            Cursor cellCursor = db.query(
+                LauncherSettings.Favorites.TABLE_NAME,
+                new String[] {
+                    LauncherSettings.Favorites.SCREEN,
+                    LauncherSettings.Favorites.CELLX,
+                    LauncherSettings.Favorites.CELLY,
+                    LauncherSettings.Favorites.SPANX,
+                    LauncherSettings.Favorites.SPANY
+                },
+                LauncherSettings.Favorites.CONTAINER + " = ?",
+                new String[] { String.valueOf(LauncherSettings.Favorites.CONTAINER_DESKTOP) },
+                null, null, null
+            );
+
+            // Map of screen number -> set of occupied cell coordinates
+            java.util.Map<Integer, java.util.Set<String>> occupiedCellsByScreen = new java.util.HashMap<>();
+
+            while (cellCursor.moveToNext()) {
+                int screen = cellCursor.getInt(0);
+                int cellX = cellCursor.getInt(1);
+                int cellY = cellCursor.getInt(2);
+                int spanX = cellCursor.getInt(3);
+                int spanY = cellCursor.getInt(4);
+
+                if (!occupiedCellsByScreen.containsKey(screen)) {
+                    occupiedCellsByScreen.put(screen, new java.util.HashSet<>());
+                }
+
+                // Mark all cells occupied by this item (including span)
+                for (int x = cellX; x < cellX + spanX && x < 4; x++) {
+                    for (int y = cellY; y < cellY + spanY && y < 5; y++) {
+                        occupiedCellsByScreen.get(screen).add(x + "," + y);
+                    }
+                }
+            }
+            cellCursor.close();
+
+            Log.d("DeckDebug", "Occupied cells mapped across " + occupiedCellsByScreen.size() + " screens");
+
+            // Step 4: Add missing apps to first available cells
+            int screen = 0;
+            int cellX = 0;
+            int cellY = 1;  // Start at row 1
+            int insertedCount = 0;
+
+            for (LauncherActivityInfo activity : missingActivities) {
+                // Find next available cell
+                int attempts = 0;
+                boolean foundCell = false;
+
+                while (!foundCell && attempts < 1000) {
+                    java.util.Set<String> occupiedCells = occupiedCellsByScreen.get(screen);
+                    if (occupiedCells == null) {
+                        occupiedCells = new java.util.HashSet<>();
+                        occupiedCellsByScreen.put(screen, occupiedCells);
+                    }
+
+                    if (!occupiedCells.contains(cellX + "," + cellY)) {
+                        foundCell = true;
+                    } else {
+                        // Move to next cell
+                        cellX++;
+                        if (cellX >= 4) {
+                            cellX = 0;
+                            cellY++;
+                            if (cellY >= 5) {
+                                cellY = 1;  // Start at row 1 on new screen
+                                screen++;
+                            }
+                        }
+                        attempts++;
+                    }
+                }
+
+                if (!foundCell) {
+                    Log.e("DeckDebug", "Could not find available cell for " + activity.getLabel());
+                    continue;
+                }
+
+                // Insert the app at the found cell
+                ContentValues values = new ContentValues();
+                values.put(LauncherSettings.Favorites.TITLE, activity.getLabel().toString());
+                values.put(LauncherSettings.Favorites.INTENT,
+                    new Intent(Intent.ACTION_MAIN)
+                        .addCategory(Intent.CATEGORY_LAUNCHER)
+                        .setComponent(activity.getComponentName())
+                        .toUri(0));
+                values.put(LauncherSettings.Favorites.ITEM_TYPE, LauncherSettings.Favorites.ITEM_TYPE_APPLICATION);
+                values.put(LauncherSettings.Favorites.CONTAINER, LauncherSettings.Favorites.CONTAINER_DESKTOP);
+                values.put(LauncherSettings.Favorites.SCREEN, screen);
+                values.put(LauncherSettings.Favorites.CELLX, cellX);
+                values.put(LauncherSettings.Favorites.CELLY, cellY);
+                values.put(LauncherSettings.Favorites.SPANX, 1);
+                values.put(LauncherSettings.Favorites.SPANY, 1);
+
+                long result = db.insert(LauncherSettings.Favorites.TABLE_NAME, null, values);
+
+                if (result > 0) {
+                    insertedCount++;
+                    // Mark this cell as occupied for future iterations
+                    occupiedCellsByScreen.get(screen).add(cellX + "," + cellY);
+                    Log.d("DeckDebug", "Inserted: " + activity.getLabel() + " at screen=" + screen + " (" + cellX + "," + cellY + ")");
+                }
+
+                // Move to next cell for next app
+                cellX++;
+                if (cellX >= 4) {
+                    cellX = 0;
+                    cellY++;
+                    if (cellY >= 5) {
+                        cellY = 1;
+                        screen++;
+                    }
+                }
+            }
+
+            Log.d("DeckDebug", "Successfully inserted " + insertedCount + " missing apps");
+
+            if (insertedCount > 0) {
+                onAddOrDeleteOp(db);
+            }
+
+        } catch (Exception e) {
+            Log.e("DeckDebug", "Failed to add missing allowed apps", e);
         }
     }
 

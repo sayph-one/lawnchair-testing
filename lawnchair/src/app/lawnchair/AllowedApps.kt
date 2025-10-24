@@ -13,6 +13,8 @@ object AllowedApps {
         "com.simplemobiletools.dialer.debug",
         "com.simplemobiletools.smsmessenger",
         "com.simplemobiletools.smsmessenger.debug",
+        "org.fossify.notes",
+        "org.fossify.notes.debug",
         "com.sec.android.gallery3d",
         "com.sec.android.app.camera",
         "com.sec.factory.camera",

@@ -532,6 +532,24 @@ class LawnchairLauncher : QuickstepLauncher() {
         AllowedApps.updateRegistrationCache(this)
         app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this)
         registrationOverlayManager?.refreshStatus()
+
+        // Check for and add any missing allowed apps to workspace
+        lifecycleScope.launch {
+            try {
+                // Add missing apps on IO thread
+                withContext(Dispatchers.IO) {
+                    model?.modelDbController?.addMissingAllowedAppsToWorkspace()
+                }
+
+                // Force reload on main thread to update UI
+                withContext(Dispatchers.Main) {
+                    android.util.Log.d("LawnchairLauncher", "Forcing model reload after adding missing apps")
+                    model?.forceReload()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("LawnchairLauncher", "Failed to add missing allowed apps", e)
+            }
+        }
     }
 
     override fun onDestroy() {
