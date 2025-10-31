@@ -15,6 +15,8 @@ object AllowedApps {
         "com.simplemobiletools.smsmessenger.debug",
         "org.fossify.notes",
         "org.fossify.notes.debug",
+        "app.organicmaps",
+        "app.organicmaps.debug",
         "com.sec.android.gallery3d",
         "com.sec.android.app.camera",
         "com.sec.factory.camera",
