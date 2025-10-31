@@ -812,6 +812,21 @@ class LawnchairLauncher : QuickstepLauncher() {
         }
     }
 
+    /**
+     * Debug method to toggle the registration overlay visibility
+     */
+    fun toggleRegistrationOverlay() {
+        android.util.Log.d("LawnchairLauncher", "toggleRegistrationOverlay() called for testing")
+        registrationOverlayManager?.toggleOverlay()
+    }
+
+    /**
+     * Debug method to check if overlay is currently visible
+     */
+    fun isRegistrationOverlayVisible(): Boolean {
+        return registrationOverlayManager?.isOverlayCurrentlyVisible() ?: false
+    }
+
     private fun restartIfPending() {
         when {
             sRestartFlags and FLAG_RESTART != 0 -> lawnchairApp.restart(false)

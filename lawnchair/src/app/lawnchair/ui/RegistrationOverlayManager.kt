@@ -2,10 +2,12 @@ package app.lawnchair.ui
 
 import android.content.Context
 import android.content.Intent
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import app.lawnchair.util.AllowedApps
@@ -20,6 +22,7 @@ class RegistrationOverlayManager(
     var onRegistrationChanged: (() -> Unit)? = null
 
     private var overlayView: View? = null
+    private var overlayContainer: FrameLayout? = null // Container to handle centering
     private var isOverlayVisible = false
 
     // Listener for when registration status changes
@@ -98,26 +101,32 @@ class RegistrationOverlayManager(
                 val screenWidth = displayMetrics.widthPixels
                 val targetWidth = (screenWidth * 0.85).toInt() // 85% of screen width
 
-                val layoutParams = ViewGroup.MarginLayoutParams(
+                // Create a full-screen container to handle centering
+                val container = FrameLayout(context).apply {
+                    layoutParams = FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    // Make container non-clickable so touches pass through to underlying views
+                    isClickable = false
+                    isFocusable = false
+                }
+
+                // Add overlay to container with centering
+                val overlayParams = FrameLayout.LayoutParams(
                     targetWidth,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    // optional extra margins so it never hits edges
-                    val margin = (screenWidth * 0.05).toInt()
-                    setMargins(margin, 0, margin, 0)
+                    gravity = Gravity.CENTER
                 }
+                container.addView(overlay, overlayParams)
 
-                overlay.layoutParams = layoutParams
-
-                // Add and center
-                parentContainer.addView(overlay)
+                // Add container to parent
+                parentContainer.addView(container)
+                overlayContainer = container
                 isOverlayVisible = true
 
-                overlay.post {
-                    centerOverlayInParent(overlay)
-                }
-
-                android.util.Log.d("RegistrationOverlay", "Overlay added with dynamic width $targetWidth")
+                android.util.Log.d("RegistrationOverlay", "Overlay added in centered container with width $targetWidth")
             }
 
         } catch (e: Exception) {
@@ -170,23 +179,34 @@ class RegistrationOverlayManager(
             fallbackLayout.addView(messageText)
             fallbackLayout.addView(registerButton)
 
-            val layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-
-            fallbackLayout.layoutParams = layoutParams
-            parentContainer.addView(fallbackLayout)
-
-            overlayView = fallbackLayout
-            isOverlayVisible = true
-
-            // Center the fallback overlay
-            fallbackLayout.post {
-                centerOverlayInParent(fallbackLayout)
+            // Create a full-screen container to handle centering
+            val container = FrameLayout(context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                // Make container non-clickable so touches pass through
+                isClickable = false
+                isFocusable = false
             }
 
-            android.util.Log.d("RegistrationOverlay", "Fallback overlay created with minWidth: $minWidth")
+            // Add fallback overlay to container with centering
+            val overlayParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER
+            }
+            container.addView(fallbackLayout, overlayParams)
+
+            // Add container to parent
+            parentContainer.addView(container)
+
+            overlayView = fallbackLayout
+            overlayContainer = container
+            isOverlayVisible = true
+
+            android.util.Log.d("RegistrationOverlay", "Fallback overlay created with minWidth: $minWidth and centered in container")
 
         } catch (e: Exception) {
             android.util.Log.e("RegistrationOverlay", "Failed to create fallback overlay", e)
@@ -194,38 +214,13 @@ class RegistrationOverlayManager(
     }
 
     /**
-     * Center the overlay in the parent container
-     */
-    private fun centerOverlayInParent(overlay: View) {
-        try {
-            val parentWidth = parentContainer.width
-            val parentHeight = parentContainer.height
-            val overlayWidth = overlay.width
-            val overlayHeight = overlay.height
-
-            if (parentWidth > 0 && parentHeight > 0 && overlayWidth > 0 && overlayHeight > 0) {
-                val x = (parentWidth - overlayWidth) / 2
-                val y = (parentHeight - overlayHeight) / 2
-
-                overlay.x = x.toFloat()
-                overlay.y = y.toFloat()
-
-                android.util.Log.d("RegistrationOverlay", "Overlay centered at ($x, $y)")
-            } else {
-                android.util.Log.w("RegistrationOverlay", "Could not center overlay - dimensions not ready")
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("RegistrationOverlay", "Failed to center overlay", e)
-        }
-    }
-
-    /**
      * Hide the registration overlay
      */
     private fun hideRegistrationOverlay() {
-        overlayView?.let { overlay ->
-            parentContainer.removeView(overlay)
+        overlayContainer?.let { container ->
+            parentContainer.removeView(container)
             overlayView = null
+            overlayContainer = null
             isOverlayVisible = false
 
             // Trigger the callback when overlay is hidden (device registered)
@@ -275,6 +270,43 @@ class RegistrationOverlayManager(
         SayphRegistrationChecker.forceRefresh()
         updateOverlayVisibility()
     }
+
+    /**
+     * Debug method to force show the overlay (for testing UI positioning)
+     */
+    fun forceShowOverlay() {
+        android.util.Log.d("RegistrationOverlay", "forceShowOverlay() called for testing")
+        if (!isOverlayVisible) {
+            showRegistrationOverlay()
+        }
+    }
+
+    /**
+     * Debug method to force hide the overlay (for testing)
+     */
+    fun forceHideOverlay() {
+        android.util.Log.d("RegistrationOverlay", "forceHideOverlay() called for testing")
+        if (isOverlayVisible) {
+            hideRegistrationOverlay()
+        }
+    }
+
+    /**
+     * Debug method to toggle overlay visibility (for testing)
+     */
+    fun toggleOverlay() {
+        android.util.Log.d("RegistrationOverlay", "toggleOverlay() called - current state: $isOverlayVisible")
+        if (isOverlayVisible) {
+            forceHideOverlay()
+        } else {
+            forceShowOverlay()
+        }
+    }
+
+    /**
+     * Get current overlay visibility state (for debugging)
+     */
+    fun isOverlayCurrentlyVisible(): Boolean = isOverlayVisible
 
     /**
      * Clean up resources

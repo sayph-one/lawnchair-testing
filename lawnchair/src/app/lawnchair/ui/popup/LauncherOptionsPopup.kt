@@ -154,6 +154,18 @@ object LauncherOptionsPopup {
                     true
                 }
             )
+
+            // Add overlay toggle option
+            options.add(
+                OptionItem(
+                    "Toggle Registration Overlay",
+                    launcher.getDrawable(android.R.drawable.ic_menu_view),
+                    LauncherEvent.IGNORE
+                ) { view ->
+                    toggleRegistrationOverlay(view)
+                    true
+                }
+            )
         }
 
         return options
@@ -214,6 +226,33 @@ object LauncherOptionsPopup {
         } catch (e: Exception) {
             Log.e("LauncherOptionsPopup", "Error showing debug dialog", e)
             Toast.makeText(launcher, "Debug error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun toggleRegistrationOverlay(view: View) {
+        try {
+            val launcher = Launcher.getLauncher(view.context)
+
+            // Check if this is a LawnchairLauncher instance
+            if (launcher is app.lawnchair.LawnchairLauncher) {
+                val wasVisible = launcher.isRegistrationOverlayVisible()
+                launcher.toggleRegistrationOverlay()
+                val isNowVisible = launcher.isRegistrationOverlayVisible()
+
+                val message = if (isNowVisible) {
+                    "Registration overlay shown"
+                } else {
+                    "Registration overlay hidden"
+                }
+
+                Toast.makeText(launcher, message, Toast.LENGTH_SHORT).show()
+                Log.d("LauncherOptionsPopup", "Toggled overlay: was=$wasVisible, now=$isNowVisible")
+            } else {
+                Toast.makeText(launcher, "Not a LawnchairLauncher instance", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e("LauncherOptionsPopup", "Error toggling overlay", e)
+            Toast.makeText(view.context, "Error toggling overlay: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
