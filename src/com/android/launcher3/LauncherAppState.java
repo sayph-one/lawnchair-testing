@@ -199,10 +199,9 @@ public class LauncherAppState implements SafeCloseable {
     }
 
     private void onNotificationSettingsChanged(boolean areNotificationDotsEnabled) {
-        if (areNotificationDotsEnabled) {
-            NotificationListener.requestRebind(new ComponentName(
-                    mContext, NotificationListener.class));
-        }
+        // Always attempt to bind - Sayph Agent will prompt user for permission
+        NotificationListener.requestRebind(new ComponentName(
+                mContext, NotificationListener.class));
     }
 
     private void registerPrivateSpaceHideWhenLockListener(SettingsCache settingsCache) {

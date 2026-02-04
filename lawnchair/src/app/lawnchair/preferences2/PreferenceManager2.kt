@@ -791,7 +791,12 @@ class PreferenceManager2 private constructor(private val context: Context) :
     companion object {
         private val Context.preferencesDataStore by preferencesDataStore(
             name = "preferences",
-            produceMigrations = { listOf(SharedPreferencesMigration(context = it).produceMigration()) },
+            produceMigrations = {
+                listOf(
+                    SharedPreferencesMigration(context = it).produceMigration(),
+                    EnableNotificationCountMigration(),
+                )
+            },
         )
 
         @JvmField
