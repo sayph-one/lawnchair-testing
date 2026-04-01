@@ -27,7 +27,13 @@ import static com.android.launcher3.util.OnboardingPrefs.HOME_BOUNCE_COUNT;
 import static com.android.launcher3.util.OnboardingPrefs.HOME_BOUNCE_SEEN;
 import static com.android.launcher3.util.OnboardingPrefs.HOTSEAT_DISCOVERY_TIP_COUNT;
 
+import android.content.Context;
+import android.content.Intent;
+import android.provider.Settings;
+import android.widget.Toast;
+
 import com.android.launcher3.Launcher;
+import com.android.launcher3.R;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.Utilities;
@@ -38,12 +44,17 @@ import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.StateListener;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
 import com.android.launcher3.util.DisplayController;
+import com.android.launcher3.views.Snackbar;
 import com.android.quickstep.views.AllAppsEduView;
 
 /**
  * Class to setup onboarding behavior for quickstep launcher
  */
 public class QuickstepOnboardingPrefs {
+
+    // Session-based counter for notification access prompt (resets on app restart)
+    private static final int MAX_NOTIFICATION_PROMPTS_PER_SESSION = 4;
+    private static int sNotificationAccessPromptCount = 0;
 
     /**
      * Sets up the initial onboarding behavior for the launcher
@@ -150,5 +161,45 @@ public class QuickstepOnboardingPrefs {
                 }
             });
         }
+
+    }
+
+    /**
+     * Check and show notification access prompt if needed.
+     * Call this from onResume() to prompt users who don't use state transitions.
+     * Shows up to MAX_NOTIFICATION_PROMPTS_PER_SESSION times per app restart.
+     */
+    public static void checkNotificationAccessPrompt(Launcher launcher) {
+        if (!isNotificationListenerEnabled(launcher)
+                && sNotificationAccessPromptCount < MAX_NOTIFICATION_PROMPTS_PER_SESSION) {
+            sNotificationAccessPromptCount++;
+            // Delay slightly to avoid showing during initial layout
+            launcher.getDragLayer().postDelayed(() -> {
+                if (!isNotificationListenerEnabled(launcher)) {
+                    showNotificationAccessSnackbar(launcher);
+                }
+            }, 1000);
+        }
+    }
+
+    private static boolean isNotificationListenerEnabled(Context context) {
+        String listeners = Settings.Secure.getString(
+                context.getContentResolver(), "enabled_notification_listeners");
+        return listeners != null && listeners.contains(context.getPackageName());
+    }
+
+    private static void showNotificationAccessSnackbar(Launcher launcher) {
+        Snackbar.show(launcher,
+                R.string.notification_access_prompt,
+                R.string.notification_access_enable,
+                null,
+                () -> {
+                    Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
+                    intent.putExtra(Settings.EXTRA_APP_PACKAGE, launcher.getPackageName());
+                    launcher.startActivity(intent);
+                    Toast.makeText(launcher,
+                            R.string.notification_access_hint,
+                            Toast.LENGTH_LONG).show();
+                });
     }
 }

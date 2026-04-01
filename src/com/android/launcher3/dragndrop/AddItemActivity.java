@@ -261,8 +261,13 @@ public class AddItemActivity extends BaseActivity
                         .setPackage(getPackageName())
                         .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         Launcher.ACTIVITY_TRACKER.registerCallback(listener, "AddItemActivity.onLongClick");
-        startActivity(homeIntent,
-                ApiWrapper.INSTANCE.get(this).createFadeOutAnimOptions().toBundle());
+        try {
+            startActivity(homeIntent,
+                    ApiWrapper.INSTANCE.get(this).createFadeOutAnimOptions().toBundle());
+        } catch (SecurityException e) {
+            // Remote transition not allowed (e.g., not default launcher), start without animation
+            startActivity(homeIntent);
+        }
         logCommand(LAUNCHER_ADD_EXTERNAL_ITEM_DRAGGED);
         mFinishOnPause = true;
         return false;
