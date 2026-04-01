@@ -17,6 +17,8 @@ object AllowedApps {
         "org.fossify.notes.debug",
         "app.organicmaps",
         "app.organicmaps.debug",
+        "one.sayph.music",
+        "one.sayph.music.debug",
         "com.sec.android.gallery3d",
         "com.sec.android.app.camera",
         "com.sec.factory.camera",
