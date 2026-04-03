@@ -112,6 +112,7 @@ class LawnchairLauncher : QuickstepLauncher() {
     private val themeProvider by unsafeLazy { ThemeProvider.INSTANCE.get(this) }
     private var registrationOverlayManager: RegistrationOverlayManager? = null
     private var statusReceiver: AllowedApps.RegistrationStatusReceiver? = null
+    private var pendingMissingAppsCheck = true // true on first launch to populate initial workspace
     private val noStatusBarStateListener = object : StateManager.StateListener<LauncherState> {
         override fun onStateTransitionStart(toState: LauncherState) {
             if (toState is OverviewState) {
@@ -282,45 +283,35 @@ class LawnchairLauncher : QuickstepLauncher() {
 
         // Apply deck mode if version has changed
         if (!deckModeInitialized) {
-            lifecycleScope.launch {
-                Log.e("DeckDebug", "First install - full deck mode initialization")
+            Log.d("DeckDebug", "First install - deck mode initialization")
 
+            // Set preferences synchronously so they're applied before any model load.
+            // Must use runBlocking since pref set() is suspend but we need this done
+            // before the model loads (activity may be recreated by permission dialogs).
+            kotlinx.coroutines.runBlocking {
                 preferenceManager2.deckLayout.set(true)
+                preferenceManager2.enableSmartspace.set(true)
                 preferenceManager2.swipeUpGestureHandler.set(GestureHandlerConfig.NoOp)
-                prefs.addIconToHome.set(true)
-
-                withContext(Dispatchers.IO) {
-                    try {
-                        Log.e("DeckDebug", "Creating workspace for first install")
-                        model?.modelDbController?.createEmptyDB()
-                        model?.modelDbController?.loadDefaultFavoritesIfNecessary()
-                    } catch (e: Exception) {
-                        Log.e("DeckDebug", "Failed to initialize workspace", e)
-                    }
-                }
-
-                withContext(Dispatchers.Main) {
-                    model?.forceReload()
-                }
-
-                deckPrefs.edit()
-                    .putString("last_version_code", currentVersionCode)
-                    .putBoolean("deck_mode_initialized", true)
-                    .apply()
             }
+            prefs.addIconToHome.set(true)
+
+            // Mark as initialized immediately to prevent re-entry on activity recreate.
+            // App population happens via finishBindingItems() after the model loads.
+            deckPrefs.edit()
+                .putString("last_version_code", currentVersionCode)
+                .putBoolean("deck_mode_initialized", true)
+                .apply()
         } else if (currentVersionCode != lastVersionCode) {
-            // Version update - only set preferences, don't rebuild workspace
-            lifecycleScope.launch {
-                Log.e("DeckDebug", "Version update - preserving workspace")
-
+            Log.d("DeckDebug", "Version update - preserving workspace")
+            kotlinx.coroutines.runBlocking {
                 preferenceManager2.deckLayout.set(true)
+                preferenceManager2.enableSmartspace.set(true)
                 preferenceManager2.swipeUpGestureHandler.set(GestureHandlerConfig.NoOp)
-                prefs.addIconToHome.set(true)
-
-                deckPrefs.edit()
-                    .putString("last_version_code", currentVersionCode)
-                    .apply()
             }
+            prefs.addIconToHome.set(true)
+            deckPrefs.edit()
+                .putString("last_version_code", currentVersionCode)
+                .apply()
         }
 
         // ADD REGISTRATION OVERLAY INITIALIZATION HERE
@@ -548,23 +539,7 @@ class LawnchairLauncher : QuickstepLauncher() {
         app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this)
         registrationOverlayManager?.refreshStatus()
 
-        // Check for and add any missing allowed apps to workspace
-        lifecycleScope.launch {
-            try {
-                // Add missing apps on IO thread
-                withContext(Dispatchers.IO) {
-                    model?.modelDbController?.addMissingAllowedAppsToWorkspace()
-                }
-
-                // Force reload on main thread to update UI
-                withContext(Dispatchers.Main) {
-                    android.util.Log.d("LawnchairLauncher", "Forcing model reload after adding missing apps")
-                    model?.forceReload()
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("LawnchairLauncher", "Failed to add missing allowed apps", e)
-            }
-        }
+        // Missing apps are added via finishBindingItems() callback after model loads.
     }
 
     override fun onDestroy() {
@@ -644,29 +619,28 @@ class LawnchairLauncher : QuickstepLauncher() {
     }
 
     /**
+     * Called by AOSP when the model finishes binding all workspace items.
+     * Only populates missing allowed apps when triggered by registration change,
+     * not on every bind — otherwise user-removed items get re-added.
+     */
+    override fun finishBindingItems(pagesBoundFirst: com.android.launcher3.util.IntSet) {
+        super.finishBindingItems(pagesBoundFirst)
+        if (pendingMissingAppsCheck) {
+            pendingMissingAppsCheck = false
+            model?.enqueueModelUpdateTask { _, dataModel, allApps ->
+                app.lawnchair.workspace.AllowedAppsWorkspaceManager(this@LawnchairLauncher)
+                    .ensureMissingAppsOnWorkspace(model!!, dataModel, allApps)
+            }
+        }
+    }
+
+    /**
      * Reload workspace when registration status changes
      */
     private fun reloadWorkspaceOnRegistrationChange() {
-        android.util.Log.e("LawnchairLauncher", "!!! reloadWorkspaceOnRegistrationChange() CALLED !!!")
-        try {
-            android.util.Log.d("LawnchairLauncher", "=== REGISTRATION CHANGED - RELOADING WORKSPACE ===")
-
-            lifecycleScope.launch {
-                // Do database operations on IO thread
-                withContext(Dispatchers.IO) {
-                    android.util.Log.d("LawnchairLauncher", "Reloading workspace apps in database")
-                    model?.modelDbController?.reloadWorkspaceApps()
-                }
-
-                // Reload the model on main thread
-                withContext(Dispatchers.Main) {
-                    android.util.Log.d("LawnchairLauncher", "Forcing model reload")
-                    model?.forceReload()
-                }
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("LawnchairLauncher", "Failed to reload workspace on registration change", e)
-        }
+        android.util.Log.d("LawnchairLauncher", "Registration changed — reloading workspace")
+        pendingMissingAppsCheck = true
+        model?.forceReload()
     }
 
     /**

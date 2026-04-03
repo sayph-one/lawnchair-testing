@@ -59,17 +59,32 @@ public class WorkspaceItemSpaceFinder {
             }
         }
 
+        // When smartspace is enabled, row 0 on the first screen is occupied by the
+        // At-a-Glance widget (which isn't in itemsIdMap). Add a placeholder so the
+        // space finder skips row 0 and places apps starting at row 1.
+        if (FeatureFlags.topQsbOnFirstScreenEnabled(app.getContext())) {
+            ArrayList<ItemInfo> firstScreenItems = screenItems.get(FIRST_SCREEN_ID);
+            if (firstScreenItems == null) {
+                firstScreenItems = new ArrayList<>();
+                screenItems.put(FIRST_SCREEN_ID, firstScreenItems);
+            }
+            InvariantDeviceProfile idp = app.getInvariantDeviceProfile();
+            ItemInfo smartspacePlaceholder = new ItemInfo();
+            smartspacePlaceholder.cellX = 0;
+            smartspacePlaceholder.cellY = 0;
+            smartspacePlaceholder.spanX = idp.numColumns;
+            smartspacePlaceholder.spanY = 1;
+            smartspacePlaceholder.screenId = FIRST_SCREEN_ID;
+            firstScreenItems.add(smartspacePlaceholder);
+        }
+
         // Find appropriate space for the item.
         int screenId = 0;
         int[] coordinates = new int[2];
         boolean found = false;
 
         int screenCount = workspaceScreens.size();
-        // First check the preferred screen.
         IntSet screensToExclude = new IntSet();
-        if (FeatureFlags.topQsbOnFirstScreenEnabled(app.getContext())) {
-            screensToExclude.add(FIRST_SCREEN_ID);
-        }
 
         for (int screen = 0; screen < screenCount; screen++) {
             screenId = workspaceScreens.get(screen);

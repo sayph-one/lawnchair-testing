@@ -1,7 +1,13 @@
 package app.lawnchair.ui
 
+import android.app.Activity
+import android.app.WallpaperManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -22,8 +28,14 @@ class RegistrationOverlayManager(
     var onRegistrationChanged: (() -> Unit)? = null
 
     private var overlayView: View? = null
-    private var overlayContainer: FrameLayout? = null // Container to handle centering
+    private var overlayContainer: FrameLayout? = null
     private var isOverlayVisible = false
+    private var savedStatusBarColor: Int = 0
+    private var savedNavBarColor: Int = 0
+
+    private companion object {
+        const val OVERLAY_COLOR = 0xFF1d4576.toInt()
+    }
 
     // Listener for when registration status changes
     private val registrationListener = {
@@ -96,28 +108,29 @@ class RegistrationOverlayManager(
                     }
                 } ?: android.util.Log.w("RegistrationOverlay", "Could not find register button")
 
-                // --- Dynamic sizing here ---
-                val displayMetrics = context.resources.displayMetrics
-                val screenWidth = displayMetrics.widthPixels
-                val targetWidth = (screenWidth * 0.85).toInt() // 85% of screen width
-
-                // Create a full-screen container to handle centering
+                // Full-screen opaque container that blocks interaction with apps
                 val container = FrameLayout(context).apply {
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    // Make container non-clickable so touches pass through to underlying views
-                    isClickable = false
-                    isFocusable = false
+                    setBackgroundColor(OVERLAY_COLOR)
+                    fitsSystemWindows = false
+                    clipToPadding = false
+                    isClickable = true
+                    isFocusable = true
+                    elevation = 100f
                 }
 
-                // Add overlay to container with centering
+                // Position content at ~35% from top (golden ratio) instead of dead center
+                val displayMetrics = context.resources.displayMetrics
+                val topMargin = (displayMetrics.heightPixels * 0.28).toInt()
                 val overlayParams = FrameLayout.LayoutParams(
-                    targetWidth,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    gravity = Gravity.CENTER
+                    gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                    this.topMargin = topMargin
                 }
                 container.addView(overlay, overlayParams)
 
@@ -125,8 +138,10 @@ class RegistrationOverlayManager(
                 parentContainer.addView(container)
                 overlayContainer = container
                 isOverlayVisible = true
+                setSystemBarColors(OVERLAY_COLOR)
+                setOverlayWallpaper()
 
-                android.util.Log.d("RegistrationOverlay", "Overlay added in centered container with width $targetWidth")
+                android.util.Log.d("RegistrationOverlay", "Overlay added as full-screen registration screen")
             }
 
         } catch (e: Exception) {
@@ -179,15 +194,18 @@ class RegistrationOverlayManager(
             fallbackLayout.addView(messageText)
             fallbackLayout.addView(registerButton)
 
-            // Create a full-screen container to handle centering
+            // Create a full-screen opaque container that blocks interaction with apps
             val container = FrameLayout(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                // Make container non-clickable so touches pass through
-                isClickable = false
-                isFocusable = false
+                setBackgroundColor(0xFF1d4576.toInt())
+                fitsSystemWindows = false
+                clipToPadding = false
+                isClickable = true
+                isFocusable = true
+                elevation = 100f
             }
 
             // Add fallback overlay to container with centering
@@ -205,6 +223,8 @@ class RegistrationOverlayManager(
             overlayView = fallbackLayout
             overlayContainer = container
             isOverlayVisible = true
+            setSystemBarColors(OVERLAY_COLOR)
+            setOverlayWallpaper()
 
             android.util.Log.d("RegistrationOverlay", "Fallback overlay created with minWidth: $minWidth and centered in container")
 
@@ -222,8 +242,9 @@ class RegistrationOverlayManager(
             overlayView = null
             overlayContainer = null
             isOverlayVisible = false
+            restoreSystemBarColors()
+            restoreWallpaper()
 
-            // Trigger the callback when overlay is hidden (device registered)
             android.util.Log.d("RegistrationOverlay", "Overlay hidden - triggering registration changed callback")
             onRegistrationChanged?.invoke()
         }
@@ -307,6 +328,83 @@ class RegistrationOverlayManager(
      * Get current overlay visibility state (for debugging)
      */
     fun isOverlayCurrentlyVisible(): Boolean = isOverlayVisible
+
+    private fun setSystemBarColors(color: Int) {
+        (context as? Activity)?.window?.let { window ->
+            savedStatusBarColor = window.statusBarColor
+            savedNavBarColor = window.navigationBarColor
+            window.statusBarColor = color
+            window.navigationBarColor = color
+        }
+    }
+
+    private fun restoreSystemBarColors() {
+        (context as? Activity)?.window?.let { window ->
+            window.statusBarColor = savedStatusBarColor
+            window.navigationBarColor = savedNavBarColor
+        }
+    }
+
+    private fun setOverlayWallpaper() {
+        try {
+            val wm = WallpaperManager.getInstance(context)
+            val displayMetrics = context.resources.displayMetrics
+            val width = displayMetrics.widthPixels
+            val height = displayMetrics.heightPixels
+            val density = displayMetrics.density
+
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(OVERLAY_COLOR)
+
+            // Draw Sayph logo from resources
+            val logoBitmap = android.graphics.BitmapFactory.decodeResource(
+                context.resources,
+                context.resources.getIdentifier("sayph_logo", "drawable", context.packageName),
+            )
+            if (logoBitmap != null) {
+                val logoWidth = (200 * density).toInt()
+                val logoHeight = (logoWidth * logoBitmap.height.toFloat() / logoBitmap.width).toInt()
+                val scaled = Bitmap.createScaledBitmap(logoBitmap, logoWidth, logoHeight, true)
+                val logoX = (width - logoWidth) / 2f
+                val logoY = height * 0.42f
+                canvas.drawBitmap(scaled, logoX, logoY, null)
+                scaled.recycle()
+                logoBitmap.recycle()
+
+                // Draw "Device not registered" text below logo
+                val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xB3FFFFFF.toInt() // white 70%
+                    textSize = 16 * density
+                    textAlign = Paint.Align.CENTER
+                    typeface = Typeface.DEFAULT
+                }
+                val textY = logoY + logoHeight + (48 * density)
+                canvas.drawText("Device not registered", width / 2f, textY, textPaint)
+            }
+
+            wm.setBitmap(bitmap)
+            bitmap.recycle()
+            android.util.Log.d("RegistrationOverlay", "Branded wallpaper set")
+        } catch (e: Exception) {
+            android.util.Log.e("RegistrationOverlay", "Failed to set overlay wallpaper", e)
+        }
+    }
+
+    private fun restoreWallpaper() {
+        try {
+            val wm = WallpaperManager.getInstance(context)
+            val defaultBitmap = android.graphics.BitmapFactory.decodeResource(
+                context.resources, com.android.launcher3.R.drawable.default_wallpaper
+            )
+            if (defaultBitmap != null) {
+                wm.setBitmap(defaultBitmap)
+                android.util.Log.d("RegistrationOverlay", "Wallpaper restored to default")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RegistrationOverlay", "Failed to restore wallpaper", e)
+        }
+    }
 
     /**
      * Clean up resources

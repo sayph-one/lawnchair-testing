@@ -5,47 +5,55 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:gravity="center_horizontal"
-    android:background="@drawable/registration_widget_background"
-    android:padding="24dp">
+    android:paddingHorizontal="40dp">
 
     <!-- Logo -->
     <ImageView
         android:id="@+id/registration_logo"
-        android:layout_width="150dp"
+        android:layout_width="200dp"
         android:layout_height="wrap_content"
         android:adjustViewBounds="true"
         android:scaleType="fitCenter"
         android:src="@drawable/sayph_logo"
         android:contentDescription="@string/app_name"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="32dp" />
+
+    <!-- Heading -->
+    <TextView
+        android:id="@+id/registration_heading"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Device Setup"
+        android:textColor="#FFFFFFFF"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textAlignment="center"
+        android:gravity="center"
+        android:layout_marginBottom="12dp" />
 
     <!-- Message text -->
     <TextView
         android:id="@+id/registration_message"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Device not registered with Sayph.\nApps are hidden until registration is complete."
-        android:textColor="#FFFFFFFF"
-        android:textSize="11sp"
-        android:textStyle="bold"
+        android:text="Register this device to\nunlock your apps"
+        android:textColor="#B3FFFFFF"
+        android:textSize="16sp"
         android:lineSpacingExtra="4dp"
         android:textAlignment="center"
         android:gravity="center"
-        android:paddingHorizontal="10dp"
-        android:layout_marginBottom="24dp" />
+        android:layout_marginBottom="40dp" />
 
     <!-- Button -->
     <Button
         android:id="@+id/register_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:minWidth="200dp"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
         android:text="Register"
         android:textAllCaps="true"
         android:textSize="16sp"
-        android:textColor="#1d4576"
-        android:background="@drawable/registration_button_background"
-        android:paddingHorizontal="32dp"
-        android:paddingVertical="12dp"
-        android:layout_marginTop="8dp" />
+        android:textStyle="bold"
+        android:textColor="#FFFFFFFF"
+        android:letterSpacing="0.05"
+        android:background="@drawable/registration_button_background" />
 </LinearLayout>
