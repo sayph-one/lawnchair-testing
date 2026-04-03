@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import app.lawnchair.LawnchairLauncher
 import app.lawnchair.font.FontCache
+import app.lawnchair.util.isGestureNavContractCompatible
 import app.lawnchair.util.isOnePlusStock
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.InvariantDeviceProfile.INDEX_DEFAULT
@@ -63,6 +64,7 @@ class PreferenceManager private constructor(private val context: Context) :
     val windowCornerRadius = IntPref("pref_windowCornerRadius", 80, recreate)
     val autoLaunchRoot = BoolPref("pref_autoLaunchRoot", false)
     val wallpaperScrolling = BoolPref("pref_wallpaperScrolling", true)
+    val infiniteScrolling = BoolPref("pref_infiniteScrolling", false)
     val enableDebugMenu = BoolPref("pref_enableDebugMenu", false)
     val customAppName = object : MutableMapPref<ComponentKey, String>("pref_appNameMap", reloadGrid) {
         override fun flattenKey(key: ComponentKey) = key.toString()
@@ -129,6 +131,8 @@ class PreferenceManager private constructor(private val context: Context) :
     val recentsActionLocked = BoolPref("pref_lockedAsAction", false)
     val recentsTranslucentBackground = BoolPref("pref_recentsTranslucentBackground", false, recreate)
     val recentsTranslucentBackgroundAlpha = FloatPref("pref_recentTranslucentBackgroundAlpha", .8f, recreate)
+
+    val enableGnc = BoolPref("pref_enableGnc", isGestureNavContractCompatible, recreate)
 
     override fun close() {
         TODO("Not yet implemented")

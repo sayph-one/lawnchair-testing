@@ -7,35 +7,15 @@
         'dependencies',
     ],
     packageRules: [
+        // Enable auto-merge for minor/patch updates.
         {
-            groupName: 'Kotlin and KSP',
-            matchPackageNames: [
-                'com.google.devtools.ksp{/,}**',
-                '/org.jetbrains.kotlin.*/'
+            matchUpdateTypes: [
+                'minor',
+                'patch',
             ],
-        },
-        {
-            groupName: 'AGP',
+            automerge: true,
             matchPackageNames: [
-                '/com.android.*/',
-            ],
-        },
-        {
-            groupName: 'dev.rikka.tools.refine',
-            matchPackageNames: [
-                'dev.rikka.tools.refine{/,}**',
-            ],
-        },
-        {
-            groupName: 'androidx.lifecycle',
-            matchPackageNames: [
-                '/androidx.lifecycle:*/',
-            ],
-        },
-        {
-            groupName: 'Dagger',
-            matchPackageNames: [
-                'com.google.dagger{/,}**',
+                '/.*/',
             ],
         },
     ],

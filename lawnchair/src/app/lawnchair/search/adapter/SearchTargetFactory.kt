@@ -296,6 +296,7 @@ class SearchTargetFactory(
                 MediaStore.Files.getContentUri("external"),
                 info.fileId,
             )
+
             is FolderInfo -> File(info.path).file2Uri()
         }
 
