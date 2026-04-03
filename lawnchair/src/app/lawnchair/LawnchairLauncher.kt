@@ -112,7 +112,7 @@ class LawnchairLauncher : QuickstepLauncher() {
     private val themeProvider by unsafeLazy { ThemeProvider.INSTANCE.get(this) }
     private var registrationOverlayManager: RegistrationOverlayManager? = null
     private var statusReceiver: AllowedApps.RegistrationStatusReceiver? = null
-    private var pendingMissingAppsCheck = true // true on first launch to populate initial workspace
+    private var pendingMissingAppsCheck = false
     private val noStatusBarStateListener = object : StateManager.StateListener<LauncherState> {
         override fun onStateTransitionStart(toState: LauncherState) {
             if (toState is OverviewState) {
@@ -284,6 +284,7 @@ class LawnchairLauncher : QuickstepLauncher() {
         // Apply deck mode if version has changed
         if (!deckModeInitialized) {
             Log.d("DeckDebug", "First install - deck mode initialization")
+            pendingMissingAppsCheck = true
 
             // Set preferences synchronously so they're applied before any model load.
             // Must use runBlocking since pref set() is suspend but we need this done

@@ -156,8 +156,6 @@ public class DeleteDropTarget extends ButtonDropTarget {
         // because we already remove the drag view from the folder (if the drag originated from
         // a folder) in Folder.beginDrag()
         CharSequence announcement = getContext().getString(R.string.item_removed);
-        if (!PreferenceExtensionsKt.firstBlocking(pref2.getDeckLayout())) {
-            mDropTargetHandler.onAccessibilityDelete(view, item, announcement);
-        }
+        mDropTargetHandler.onAccessibilityDelete(view, item, announcement);
     }
 }

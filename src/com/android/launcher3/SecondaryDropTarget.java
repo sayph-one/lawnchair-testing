@@ -194,6 +194,12 @@ public class SecondaryDropTarget extends ButtonDropTarget implements OnAlarmList
         if (getUninstallTarget(getContext(), info) == null) {
             return INVALID;
         }
+        // Block uninstall for allowed apps in managed launcher
+        if (info instanceof ItemInfoWithIcon
+                && app.lawnchair.util.AllowedApps.INSTANCE.isInAllowedList(
+                        info.getTargetPackage())) {
+            return INVALID;
+        }
         return UNINSTALL;
     }
 
