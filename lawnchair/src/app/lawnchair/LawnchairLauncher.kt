@@ -626,9 +626,10 @@ class LawnchairLauncher : QuickstepLauncher() {
      */
     override fun finishBindingItems(pagesBoundFirst: com.android.launcher3.util.IntSet) {
         super.finishBindingItems(pagesBoundFirst)
-        if (pendingMissingAppsCheck) {
-            pendingMissingAppsCheck = false
-            model?.enqueueModelUpdateTask { _, dataModel, allApps ->
+        model?.enqueueModelUpdateTask { _, dataModel, allApps ->
+            val workspaceEmpty = synchronized(dataModel) { dataModel.itemsIdMap.size() == 0 }
+            if (pendingMissingAppsCheck || workspaceEmpty) {
+                pendingMissingAppsCheck = false
                 app.lawnchair.workspace.AllowedAppsWorkspaceManager(this@LawnchairLauncher)
                     .ensureMissingAppsOnWorkspace(model!!, dataModel, allApps)
             }
