@@ -111,7 +111,9 @@ class LawnchairLauncher : QuickstepLauncher() {
     private val insetsController by unsafeLazy { WindowInsetsControllerCompat(launcher.window, rootView) }
     private val themeProvider by unsafeLazy { ThemeProvider.INSTANCE.get(this) }
     private var registrationOverlayManager: RegistrationOverlayManager? = null
+    private var downtimeOverlayManager: app.lawnchair.ui.DowntimeOverlayManager? = null
     private var statusReceiver: AllowedApps.RegistrationStatusReceiver? = null
+    private var downtimeReceiver: AllowedApps.DowntimeStatusReceiver? = null
     private var pendingMissingAppsCheck = false
     private val noStatusBarStateListener = object : StateManager.StateListener<LauncherState> {
         override fun onStateTransitionStart(toState: LauncherState) {
@@ -540,6 +542,11 @@ class LawnchairLauncher : QuickstepLauncher() {
         app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this)
         registrationOverlayManager?.refreshStatus()
 
+        // Check downtime status (only if registration overlay is not showing)
+        if (registrationOverlayManager?.isOverlayCurrentlyVisible() != true) {
+            downtimeOverlayManager?.refreshStatus()
+        }
+
         // Missing apps are added via finishBindingItems() callback after model loads.
     }
 
@@ -578,10 +585,27 @@ class LawnchairLauncher : QuickstepLauncher() {
             AllowedApps.addRegistrationListener {
                 android.util.Log.d("LawnchairLauncher", "=== REGISTRATION LISTENER TRIGGERED ===")
                 registrationOverlayManager?.updateOverlayVisibility()
+                // Also check downtime when registration changes (device just registered -> check downtime)
+                downtimeOverlayManager?.updateOverlayVisibility()
                 reloadWorkspaceOnRegistrationChange()  // Call the new method here too
             }
 
+            // Initialize downtime overlay
+            downtimeOverlayManager = app.lawnchair.ui.DowntimeOverlayManager(this, dragLayer)
+            downtimeReceiver = AllowedApps.registerDowntimeReceiver(this)
+
+            AllowedApps.addDowntimeListener {
+                android.util.Log.d("LawnchairLauncher", "=== DOWNTIME LISTENER TRIGGERED ===")
+                downtimeOverlayManager?.updateOverlayVisibility()
+                reloadWorkspaceOnRegistrationChange()
+            }
+
             registrationOverlayManager?.updateOverlayVisibility()
+            // Only show downtime overlay if registration overlay is not showing
+            if (registrationOverlayManager?.isOverlayCurrentlyVisible() != true) {
+                downtimeOverlayManager?.updateOverlayVisibility()
+            }
+
             startPeriodicDebugCheck()
 
         } catch (e: Exception) {
@@ -753,6 +777,11 @@ class LawnchairLauncher : QuickstepLauncher() {
                 app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this@LawnchairLauncher)
                 registrationOverlayManager?.refreshStatus()
 
+                // Check downtime (only if registration overlay is not showing)
+                if (registrationOverlayManager?.isOverlayCurrentlyVisible() != true) {
+                    downtimeOverlayManager?.refreshStatus()
+                }
+
                 // Schedule next check
                 handler.postDelayed(this, 5000)
             }
@@ -764,23 +793,34 @@ class LawnchairLauncher : QuickstepLauncher() {
 
     private fun cleanupRegistrationOverlay() {
         try {
-            // Clean up overlay manager
+            // Clean up overlay managers
             registrationOverlayManager?.destroy()
             registrationOverlayManager = null
 
-            // Unregister broadcast receiver
+            downtimeOverlayManager?.destroy()
+            downtimeOverlayManager = null
+
+            // Unregister broadcast receivers
             statusReceiver?.let { receiver ->
                 try {
                     unregisterReceiver(receiver)
                 } catch (e: Exception) {
-                    // Receiver might not be registered, ignore
                     android.util.Log.w("LawnchairLauncher", "Failed to unregister status receiver", e)
                 }
             }
             statusReceiver = null
 
+            downtimeReceiver?.let { receiver ->
+                try {
+                    unregisterReceiver(receiver)
+                } catch (e: Exception) {
+                    android.util.Log.w("LawnchairLauncher", "Failed to unregister downtime receiver", e)
+                }
+            }
+            downtimeReceiver = null
+
         } catch (e: Exception) {
-            android.util.Log.e("LawnchairLauncher", "Failed to cleanup registration overlay", e)
+            android.util.Log.e("LawnchairLauncher", "Failed to cleanup overlays", e)
         }
     }
 
