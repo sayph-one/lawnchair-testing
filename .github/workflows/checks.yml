@@ -1,0 +1,72 @@
+name: Checks
+
+on:
+  push:
+    branches:
+      - '*-dev'
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.idea/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.idea/**'
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          cache-encryption-key: Da25KUVSE5jbGds2zXmfXw==
+      - name: Run unit tests
+        run: ./gradlew testLawnWithQuickstepGithubDebugUnitTest
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results
+          path: build/reports/tests/
+
+  apk-size:
+    name: APK Size Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          cache-encryption-key: Da25KUVSE5jbGds2zXmfXw==
+      - name: Build debug APK
+        run: ./gradlew assembleLawnWithQuickstepGithubDebug
+      - name: Check APK size
+        run: |
+          APK=$(find build/outputs/apk -name "*.apk" | head -1)
+          SIZE_BYTES=$(stat -c%s "$APK")
+          SIZE_MB=$(echo "scale=2; $SIZE_BYTES / 1048576" | bc)
+          echo "## APK Size: ${SIZE_MB} MB" >> $GITHUB_STEP_SUMMARY
+          echo "File: $(basename $APK)" >> $GITHUB_STEP_SUMMARY
+          echo "Bytes: ${SIZE_BYTES}" >> $GITHUB_STEP_SUMMARY
+
+          # Fail if APK exceeds 100 MB
+          MAX_BYTES=104857600
+          if [ "$SIZE_BYTES" -gt "$MAX_BYTES" ]; then
+            echo "::error::APK size ${SIZE_MB} MB exceeds 100 MB limit"
+            exit 1
+          fi
+          echo "APK size: ${SIZE_MB} MB - OK"

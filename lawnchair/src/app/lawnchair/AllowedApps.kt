@@ -191,6 +191,21 @@ object AllowedApps {
      */
     fun getAllowedPackages(): List<String> = allowedBasePackages
 
+    /** Set cached registration status for unit tests */
+    @androidx.annotation.VisibleForTesting
+    fun setCachedRegistrationStatus(registered: Boolean) {
+        cachedRegistrationStatus = registered
+        lastRegistrationCheck = System.currentTimeMillis()
+    }
+
+    /** Check if allowed using cached status, without Android context. For unit tests. */
+    @androidx.annotation.VisibleForTesting
+    fun isAllowedCached(packageName: String): Boolean {
+        if (packageName == SAYPH_AGENT_PACKAGE) return false
+        if (!cachedRegistrationStatus) return false
+        return isInAllowedList(packageName)
+    }
+
     /**
      * Get all allowed package names including Sayph Agent
      */

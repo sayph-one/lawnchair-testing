@@ -6,19 +6,20 @@ import app.lawnchair.allapps.views.SearchItemBackground
 import app.lawnchair.allapps.views.SearchResultView.Companion.EXTRA_QUICK_LAUNCH
 import app.lawnchair.preferences2.PreferenceManager2
 import app.lawnchair.search.LawnchairSearchAdapterProvider
-import app.lawnchair.search.adapter.EMPTY_STATE
-import app.lawnchair.search.adapter.SEARCH_SETTINGS
+import app.lawnchair.search.adapter.START_PAGE
 import app.lawnchair.search.adapter.SearchAdapterItem
 import app.lawnchair.search.adapter.SearchTargetCompat
 import app.lawnchair.search.adapter.SearchTargetCompat.Companion.RESULT_TYPE_APPLICATION
 import app.lawnchair.search.adapter.SearchTargetCompat.Companion.RESULT_TYPE_SHORTCUT
 import com.android.app.search.LayoutType.CALCULATOR
 import com.android.app.search.LayoutType.EMPTY_DIVIDER
+import com.android.app.search.LayoutType.EMPTY_STATE
 import com.android.app.search.LayoutType.HORIZONTAL_MEDIUM_TEXT
 import com.android.app.search.LayoutType.ICON_HORIZONTAL_TEXT
 import com.android.app.search.LayoutType.ICON_SINGLE_VERTICAL_TEXT
 import com.android.app.search.LayoutType.ICON_SLICE
 import com.android.app.search.LayoutType.PEOPLE_TILE
+import com.android.app.search.LayoutType.SEARCH_SETTINGS
 import com.android.app.search.LayoutType.SMALL_ICON_HORIZONTAL_TEXT
 import com.android.app.search.LayoutType.TEXT_HEADER
 import com.android.app.search.LayoutType.THUMBNAIL
@@ -226,6 +227,7 @@ sealed class LawnchairSearchAlgorithm(
                 )
 
                 searchAlgorithm == LOCAL_SEARCH -> LawnchairLocalSearchAlgorithm(context)
+
                 else -> LawnchairAppSearchAlgorithm(context)
             }
         }

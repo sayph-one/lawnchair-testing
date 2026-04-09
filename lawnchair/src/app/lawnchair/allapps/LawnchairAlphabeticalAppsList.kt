@@ -8,11 +8,11 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import app.lawnchair.data.folder.model.FolderOrderUtils
 import app.lawnchair.data.folder.model.FolderViewModel
-import app.lawnchair.flowerpot.Flowerpot
 import app.lawnchair.launcher
 import app.lawnchair.preferences.PreferenceManager
 import app.lawnchair.preferences2.PreferenceManager2
 import app.lawnchair.util.AllowedApps
+import app.lawnchair.util.categorizeAppsWithSystemAndGoogle
 import com.android.launcher3.InvariantDeviceProfile.OnIDPChangeListener
 import com.android.launcher3.allapps.AllAppsStore
 import com.android.launcher3.allapps.AlphabeticalAppsList
@@ -45,7 +45,6 @@ class LawnchairAlphabeticalAppsList<T>(
     private val filteredList = mutableListOf<AppInfo>()
 
     private val folderOrder = FolderOrderUtils.stringToIntList(prefs.drawerListOrder.get())
-    private val potsManager = Flowerpot.Manager.getInstance(context)
 
     init {
         context.launcher.deviceProfile.inv.addOnChangeListener(this)
@@ -93,9 +92,13 @@ class LawnchairAlphabeticalAppsList<T>(
         filteredList.clear()
         var position = startPosition
 
+        // Show app drawer folders only on main profile, to prevent state complexity
+        if (isWorkOrPrivateSpace(appList)) return super.addAppsWithSections(appList, position)
+
         if (!drawerListDefault) {
-            val categorizedApps = potsManager.categorizeApps(filteredAllowedApps)
-            categorizedApps.forEach { (category, apps) ->
+            val finalCategorizedApps = categorizeAppsWithSystemAndGoogle(filteredAllowedApps, context)
+
+            finalCategorizedApps.forEach { (category, apps) ->
                 if (apps.size == 1) {
                     mAdapterItems.add(AdapterItem.asApp(apps.first()))
                 } else {

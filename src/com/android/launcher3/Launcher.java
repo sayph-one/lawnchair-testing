@@ -2184,20 +2184,20 @@ public class Launcher extends StatefulActivity<LauncherState>
     }
 
     private void checkAndRequestContactPermissions() {
-        int write = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CONTACTS);
-        int read = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS);
+        List<String> needed = new java.util.ArrayList<>();
 
-        Log.d("ContactsCheck", "WRITE_CONTACTS = " + write);
-        Log.d("ContactsCheck", "READ_CONTACTS = " + read);
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.WRITE_CONTACTS);
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.READ_CONTACTS);
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.READ_MEDIA_IMAGES);
+        }
 
-        if (write != PackageManager.PERMISSION_GRANTED || read != PackageManager.PERMISSION_GRANTED) {
-            String[] permissions = new String[]{
-                Manifest.permission.WRITE_CONTACTS,
-                Manifest.permission.READ_CONTACTS
-            };
-            ActivityCompat.requestPermissions(this, permissions, REQUEST_CONTACT_PERMISSIONS);
-        } else {
-            Log.d("ContactsCheck", "Permissions already granted — calling maybeAddContact()");
+        if (!needed.isEmpty()) {
+            ActivityCompat.requestPermissions(this, needed.toArray(new String[0]), REQUEST_CONTACT_PERMISSIONS);
         }
     }
 

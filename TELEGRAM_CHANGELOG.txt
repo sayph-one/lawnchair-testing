@@ -1,10 +1,20 @@
-*Lawnchair 15 Beta 1 is here!*
+Lawnchair 15 Beta 2.1 is here!
 
-We're excited to release the first beta for Lawnchair 15, a foundational update based on Android 15.
+While our focus remains on Lawnchair 16, we've decided to do a hotfix release
+to address common issues regarding the current experience of Lawnchair 15.
 
-The biggest new feature is one of our most requested ever: **App Drawer Folders**. You can now create and reorder custom folders to finally organize your app drawer.
+This release contains the following changes:
 
-This release is packed with many other improvements, from a more powerful dock to dozens of UI refinements.
+* Adds a toggle to disable icon closing animations (<code>GestureNavContract</code>), which can resolve animation glitches on certain OEMs (like One UI)
+* Fixes widgets failing to add when it requires a configuration step on Android 14 and up
+* Fixes web search timeout not working (improving search performance when offline)
+* Fixes Google Feed not showing properly (requires Lawnfeed 4.0)
+* Fixes icon shadow not being applied correctly.
 
-**Read the full announcement on our blog:**
-https://lawnchair.app/blog/lawnchair-15-beta-1
+This release also includes new translations from Crowdin, and other minor performance improvements.
+
+Alongside this hotfix, we have also released Lawnfeed 4.0, resolving issues
+with the Google Feed not working in the Play Store or Nightly releases.
+
+<a href="https://opencollective.com/lawnchair">Donate on Open Collective</a> &bull;
+<a href="https://github.com/LawnchairLauncher/lawnchair/releases/tag/v15.0.0-beta2.1">View full changelog on GitHub</a>

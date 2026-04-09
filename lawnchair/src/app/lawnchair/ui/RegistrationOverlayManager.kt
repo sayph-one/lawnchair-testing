@@ -1,7 +1,7 @@
 package app.lawnchair.ui
 
+import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -18,50 +18,42 @@ class RegistrationOverlayManager(
     private val parentContainer: ViewGroup
 ) {
 
-    // Add this property to allow passing a refresh callback
     var onRegistrationChanged: (() -> Unit)? = null
 
     private var overlayView: View? = null
-    private var overlayContainer: FrameLayout? = null // Container to handle centering
+    private var overlayContainer: FrameLayout? = null
     private var isOverlayVisible = false
 
-    // Listener for when registration status changes
+    private companion object {
+        const val OVERLAY_COLOR = 0xFF1d4576.toInt()
+    }
+
     private val registrationListener = {
         updateOverlayVisibility()
     }
 
     init {
-        // Listen for registration status changes
         AllowedApps.addRegistrationListener(registrationListener)
     }
 
-    /**
-     * Check and update overlay visibility based on registration status
-     */
     fun updateOverlayVisibility() {
         val needsRegistration = AllowedApps.needsRegistration(context)
-        val wasOverlayVisible = isOverlayVisible
 
         android.util.Log.d("RegistrationOverlay", "updateOverlayVisibility - needsRegistration: $needsRegistration, isOverlayVisible: $isOverlayVisible")
 
         if (needsRegistration && !isOverlayVisible) {
             android.util.Log.d("RegistrationOverlay", "Showing registration overlay")
             showRegistrationOverlay()
-            // TRIGGER CALLBACK WHEN BECOMING UNREGISTERED
             android.util.Log.d("RegistrationOverlay", "Device unregistered - triggering callback")
             onRegistrationChanged?.invoke()
         } else if (!needsRegistration && isOverlayVisible) {
             android.util.Log.d("RegistrationOverlay", "Hiding registration overlay")
             hideRegistrationOverlay()
-            // Callback already triggered in hideRegistrationOverlay()
         } else {
             android.util.Log.d("RegistrationOverlay", "No overlay change needed")
         }
     }
 
-    /**
-     * Show the registration overlay
-     */
     private fun showRegistrationOverlay() {
         if (isOverlayVisible) {
             android.util.Log.d("RegistrationOverlay", "Overlay already visible, skipping")
@@ -87,7 +79,6 @@ class RegistrationOverlayManager(
             overlayView?.let { overlay ->
                 android.util.Log.d("RegistrationOverlay", "Successfully inflated overlay view")
 
-                // Button wiring
                 val registerButtonId = context.resources.getIdentifier("register_button", "id", context.packageName)
                 overlay.findViewById<Button?>(registerButtonId)?.let { button ->
                     button.setOnClickListener {
@@ -96,37 +87,38 @@ class RegistrationOverlayManager(
                     }
                 } ?: android.util.Log.w("RegistrationOverlay", "Could not find register button")
 
-                // --- Dynamic sizing here ---
-                val displayMetrics = context.resources.displayMetrics
-                val screenWidth = displayMetrics.widthPixels
-                val targetWidth = (screenWidth * 0.85).toInt() // 85% of screen width
-
-                // Create a full-screen container to handle centering
                 val container = FrameLayout(context).apply {
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    // Make container non-clickable so touches pass through to underlying views
-                    isClickable = false
-                    isFocusable = false
+                    setBackgroundColor(OVERLAY_COLOR)
+                    fitsSystemWindows = false
+                    clipToPadding = false
+                    isClickable = true
+                    isFocusable = true
+                    elevation = 100f
                 }
 
-                // Add overlay to container with centering
+                val displayMetrics = context.resources.displayMetrics
+                val topMargin = (displayMetrics.heightPixels * 0.28).toInt()
                 val overlayParams = FrameLayout.LayoutParams(
-                    targetWidth,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    gravity = Gravity.CENTER
+                    gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                    this.topMargin = topMargin
                 }
                 container.addView(overlay, overlayParams)
 
-                // Add container to parent
-                parentContainer.addView(container)
+                // Add to decor view so overlay covers system bar areas too
+                val decorView = (context as? Activity)?.window?.decorView as? ViewGroup
+                    ?: parentContainer
+                decorView.addView(container)
                 overlayContainer = container
                 isOverlayVisible = true
 
-                android.util.Log.d("RegistrationOverlay", "Overlay added in centered container with width $targetWidth")
+                android.util.Log.d("RegistrationOverlay", "Overlay added as full-screen registration screen")
             }
 
         } catch (e: Exception) {
@@ -135,41 +127,36 @@ class RegistrationOverlayManager(
         }
     }
 
-
-
-    /**
-     * Create a simple fallback overlay when the XML layout can't be found
-     */
     private fun createFallbackOverlay() {
         try {
             android.util.Log.d("RegistrationOverlay", "Creating fallback overlay")
 
             val displayMetrics = context.resources.displayMetrics
             val screenWidth = displayMetrics.widthPixels
-            val minWidth = (screenWidth * 0.90).toInt() // 85% of screen width as minimum
+            val minWidth = (screenWidth * 0.90).toInt()
 
             val fallbackLayout = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                setBackgroundColor(0xDD1d4576.toInt()) // More opaque blue background
-                setPadding(60, 50, 60, 50) // Increased padding
+                setBackgroundColor(0xDD1d4576.toInt())
+                setPadding(60, 50, 60, 50)
                 minimumWidth = minWidth
             }
 
             val messageText = TextView(context).apply {
                 text = "Device not registered with Sayph Agent.\nApps are hidden until registration is complete."
-                textSize = 12f // Slightly larger text
-                setTextColor(0xFFFFFFFF.toInt()) // White text
+                textSize = 12f
+                setTextColor(0xFFFFFFFF.toInt())
                 gravity = android.view.Gravity.CENTER
-                setPadding(10, 0, 10, 40) // More horizontal padding
+                setPadding(10, 0, 10, 40)
             }
 
             val registerButton = Button(context).apply {
                 text = "Register"
-                textSize = 16f // Larger button text
-                setTextColor(0xFF1d4576.toInt()) // Blue text
-                setBackgroundColor(0xFFFFFFFF.toInt()) // White background
-                setPadding(48, 20, 48, 20) // Larger button padding
-                minimumWidth = 200 // Minimum button width
+                textSize = 16f
+                setTextColor(0xFF1d4576.toInt())
+                setBackgroundColor(0xFFFFFFFF.toInt())
+                setPadding(48, 20, 48, 20)
+                minimumWidth = 200
                 setOnClickListener {
                     android.util.Log.d("RegistrationOverlay", "Fallback register button clicked")
                     openSayphAgent()
@@ -179,18 +166,19 @@ class RegistrationOverlayManager(
             fallbackLayout.addView(messageText)
             fallbackLayout.addView(registerButton)
 
-            // Create a full-screen container to handle centering
             val container = FrameLayout(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                // Make container non-clickable so touches pass through
-                isClickable = false
-                isFocusable = false
+                setBackgroundColor(0xFF1d4576.toInt())
+                fitsSystemWindows = false
+                clipToPadding = false
+                isClickable = true
+                isFocusable = true
+                elevation = 100f
             }
 
-            // Add fallback overlay to container with centering
             val overlayParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -199,39 +187,34 @@ class RegistrationOverlayManager(
             }
             container.addView(fallbackLayout, overlayParams)
 
-            // Add container to parent
-            parentContainer.addView(container)
+            val decorView = (context as? Activity)?.window?.decorView as? ViewGroup
+                ?: parentContainer
+            decorView.addView(container)
 
             overlayView = fallbackLayout
             overlayContainer = container
             isOverlayVisible = true
 
-            android.util.Log.d("RegistrationOverlay", "Fallback overlay created with minWidth: $minWidth and centered in container")
+            android.util.Log.d("RegistrationOverlay", "Fallback overlay created")
 
         } catch (e: Exception) {
             android.util.Log.e("RegistrationOverlay", "Failed to create fallback overlay", e)
         }
     }
 
-    /**
-     * Hide the registration overlay
-     */
     private fun hideRegistrationOverlay() {
         overlayContainer?.let { container ->
-            parentContainer.removeView(container)
+            val decorView = (context as? Activity)?.window?.decorView as? ViewGroup
+            decorView?.removeView(container) ?: parentContainer.removeView(container)
             overlayView = null
             overlayContainer = null
             isOverlayVisible = false
 
-            // Trigger the callback when overlay is hidden (device registered)
             android.util.Log.d("RegistrationOverlay", "Overlay hidden - triggering registration changed callback")
             onRegistrationChanged?.invoke()
         }
     }
 
-    /**
-     * Open Sayph Agent app for registration
-     */
     private fun openSayphAgent() {
         try {
             android.util.Log.d("RegistrationOverlay", "Attempting to open Sayph Agent")
@@ -244,7 +227,6 @@ class RegistrationOverlayManager(
                 context.startActivity(intent)
             } else {
                 android.util.Log.w("RegistrationOverlay", "Sayph Agent not found")
-                // Show error message instead of opening Play Store
                 android.widget.Toast.makeText(
                     context,
                     "Sayph Agent app not found. Please install Sayph Agent to register this device.",
@@ -253,7 +235,6 @@ class RegistrationOverlayManager(
             }
         } catch (e: Exception) {
             android.util.Log.e("RegistrationOverlay", "Failed to open Sayph Agent", e)
-            // Show error message for any exceptions too
             android.widget.Toast.makeText(
                 context,
                 "Unable to open Sayph Agent app.",
@@ -262,18 +243,12 @@ class RegistrationOverlayManager(
         }
     }
 
-    /**
-     * Force refresh registration status
-     */
     fun refreshStatus() {
         android.util.Log.d("RegistrationOverlay", "refreshStatus() called")
         SayphRegistrationChecker.forceRefresh()
         updateOverlayVisibility()
     }
 
-    /**
-     * Debug method to force show the overlay (for testing UI positioning)
-     */
     fun forceShowOverlay() {
         android.util.Log.d("RegistrationOverlay", "forceShowOverlay() called for testing")
         if (!isOverlayVisible) {
@@ -281,9 +256,6 @@ class RegistrationOverlayManager(
         }
     }
 
-    /**
-     * Debug method to force hide the overlay (for testing)
-     */
     fun forceHideOverlay() {
         android.util.Log.d("RegistrationOverlay", "forceHideOverlay() called for testing")
         if (isOverlayVisible) {
@@ -291,9 +263,6 @@ class RegistrationOverlayManager(
         }
     }
 
-    /**
-     * Debug method to toggle overlay visibility (for testing)
-     */
     fun toggleOverlay() {
         android.util.Log.d("RegistrationOverlay", "toggleOverlay() called - current state: $isOverlayVisible")
         if (isOverlayVisible) {
@@ -303,14 +272,9 @@ class RegistrationOverlayManager(
         }
     }
 
-    /**
-     * Get current overlay visibility state (for debugging)
-     */
     fun isOverlayCurrentlyVisible(): Boolean = isOverlayVisible
 
-    /**
-     * Clean up resources
-     */
+
     fun destroy() {
         AllowedApps.removeRegistrationListener(registrationListener)
         hideRegistrationOverlay()
