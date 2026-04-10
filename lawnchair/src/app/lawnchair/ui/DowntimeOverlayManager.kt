@@ -43,7 +43,7 @@ class DowntimeOverlayManager(
         Log.d(TAG, "updateOverlayVisibility - inDowntime: ${status.isInDowntime}, isOverlayVisible: $isOverlayVisible")
 
         if (status.isInDowntime && !isOverlayVisible) {
-            showDowntimeOverlay(status.routineName, status.endTimeMillis)
+            showDowntimeOverlay(status.routineName, status.routineType, status.endTimeMillis)
         } else if (status.isInDowntime && isOverlayVisible) {
             // Update the countdown and routine name
             updateCountdown(status.endTimeMillis)
@@ -52,7 +52,16 @@ class DowntimeOverlayManager(
         }
     }
 
-    private fun showDowntimeOverlay(routineName: String, endTimeMillis: Long) {
+    private fun getLockTitle(type: String?): String {
+        return when (type?.lowercase()) {
+            "bedtime" -> "Bedtime lock enabled"
+            "school" -> "School lock enabled"
+            "dinner" -> "Dinner lock enabled"
+            else -> "Device lock enabled"
+        }
+    }
+
+    private fun showDowntimeOverlay(routineName: String, routineType: String, endTimeMillis: Long) {
         if (isOverlayVisible) return
 
         try {
@@ -76,7 +85,7 @@ class DowntimeOverlayManager(
 
             if (layoutResId != 0) {
                 val overlayView = inflater.inflate(layoutResId, container, false)
-                setupOverlayContent(overlayView, routineName, endTimeMillis)
+                setupOverlayContent(overlayView, routineName, routineType, endTimeMillis)
 
                 val displayMetrics = context.resources.displayMetrics
                 val topMargin = (displayMetrics.heightPixels * 0.20).toInt()
@@ -90,7 +99,7 @@ class DowntimeOverlayManager(
                 container.addView(overlayView, overlayParams)
             } else {
                 Log.w(TAG, "Layout not found, creating fallback")
-                createFallbackContent(container, routineName, endTimeMillis)
+                createFallbackContent(container, routineType, endTimeMillis)
             }
 
             val decorView = (context as? Activity)?.window?.decorView as? ViewGroup
@@ -100,14 +109,18 @@ class DowntimeOverlayManager(
             isOverlayVisible = true
 
             startCountdownUpdates(endTimeMillis)
-            Log.d(TAG, "Downtime overlay shown - routine: $routineName")
+            Log.d(TAG, "Downtime overlay shown - routine: $routineName, type: $routineType")
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to show downtime overlay", e)
         }
     }
 
-    private fun setupOverlayContent(view: View, routineName: String, endTimeMillis: Long) {
+    private fun setupOverlayContent(view: View, routineName: String, routineType: String, endTimeMillis: Long) {
+        // Set heading based on routine type
+        val headingId = context.resources.getIdentifier("downtime_heading", "id", context.packageName)
+        view.findViewById<TextView?>(headingId)?.text = getLockTitle(routineType)
+
         val routineNameId = context.resources.getIdentifier("downtime_routine_name", "id", context.packageName)
         view.findViewById<TextView?>(routineNameId)?.text = routineName
 
@@ -205,7 +218,7 @@ class DowntimeOverlayManager(
         return row
     }
 
-    private fun createFallbackContent(container: FrameLayout, routineName: String, endTimeMillis: Long) {
+    private fun createFallbackContent(container: FrameLayout, routineType: String, endTimeMillis: Long) {
         val layout = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -213,23 +226,13 @@ class DowntimeOverlayManager(
         }
 
         layout.addView(TextView(context).apply {
-            text = "Device is in Downtime"
+            text = getLockTitle(routineType)
             textSize = 22f
             setTextColor(Color.WHITE)
             setTypeface(null, Typeface.BOLD)
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 16)
         })
-
-        if (routineName.isNotEmpty()) {
-            layout.addView(TextView(context).apply {
-                text = routineName
-                textSize = 16f
-                setTextColor(0xB3FFFFFF.toInt())
-                gravity = Gravity.CENTER
-                setPadding(0, 0, 0, 16)
-            })
-        }
 
         layout.addView(TextView(context).apply {
             tag = "countdown_text"

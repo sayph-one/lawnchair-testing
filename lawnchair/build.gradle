@@ -8,8 +8,8 @@ android {
         applicationId "com.android.launcher3"
         minSdkVersion 26
         targetSdkVersion 34
-        versionCode 10
-        versionName "15.Dev.(74d7440)"
+        versionCode 61
+        versionName "15.Dev.61(74d7440)"
     }
 
     signingConfigs {
@@ -21,6 +21,12 @@ android {
 
             v1SigningEnabled true
             v2SigningEnabled true
+        }
+    }
+
+    applicationVariants.configureEach { variant ->
+        variant.outputs.configureEach {
+            outputFileName = "lawnchair-${variant.versionName}-${variant.buildType.name}.apk"
         }
     }
 

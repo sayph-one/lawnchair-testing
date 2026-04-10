@@ -15,6 +15,7 @@ object SayphDowntimeChecker {
     private const val COLUMN_IS_IN_DOWNTIME = "is_in_downtime"
     private const val COLUMN_DOWNTIME_END_MILLIS = "downtime_end_millis"
     private const val COLUMN_ROUTINE_NAME = "routine_name"
+    private const val COLUMN_ROUTINE_TYPE = "routine_type"
     private const val COLUMN_CONTACT_NAME = "name"
     private const val COLUMN_CONTACT_PHONE = "phone"
 
@@ -27,7 +28,8 @@ object SayphDowntimeChecker {
     data class DowntimeStatus(
         val isInDowntime: Boolean,
         val endTimeMillis: Long,
-        val routineName: String
+        val routineName: String,
+        val routineType: String
     )
 
     data class EmergencyContact(
@@ -79,16 +81,22 @@ object SayphDowntimeChecker {
                     val isInDowntime = c.getInt(c.getColumnIndexOrThrow(COLUMN_IS_IN_DOWNTIME)) == 1
                     val endMillis = c.getLong(c.getColumnIndexOrThrow(COLUMN_DOWNTIME_END_MILLIS))
                     val routineName = c.getString(c.getColumnIndexOrThrow(COLUMN_ROUTINE_NAME))
+                    // routine_type column is new; default to "custom" if older provider versions don't have it
+                    val routineType = try {
+                        c.getString(c.getColumnIndexOrThrow(COLUMN_ROUTINE_TYPE)) ?: "custom"
+                    } catch (e: IllegalArgumentException) {
+                        "custom"
+                    }
 
-                    Log.d(TAG, "Downtime status: inDowntime=$isInDowntime, endMillis=$endMillis, routine=$routineName")
-                    return DowntimeStatus(isInDowntime, endMillis, routineName)
+                    Log.d(TAG, "Downtime status: inDowntime=$isInDowntime, endMillis=$endMillis, routine=$routineName, type=$routineType")
+                    return DowntimeStatus(isInDowntime, endMillis, routineName, routineType)
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error querying downtime status", e)
         }
 
-        return DowntimeStatus(isInDowntime = false, endTimeMillis = 0L, routineName = "")
+        return DowntimeStatus(isInDowntime = false, endTimeMillis = 0L, routineName = "", routineType = "")
     }
 
     private fun queryEmergencyContacts(context: Context): List<EmergencyContact> {
