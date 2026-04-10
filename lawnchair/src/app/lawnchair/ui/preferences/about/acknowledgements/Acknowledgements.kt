@@ -30,17 +30,52 @@ import app.lawnchair.ui.preferences.components.layout.PreferenceLayoutLazyColumn
 import app.lawnchair.ui.preferences.components.layout.preferenceGroupItems
 import com.android.launcher3.R
 
+private data class ThirdPartyAsset(
+    val name: String,
+    val subtitle: String,
+    val url: String,
+)
+
+private val thirdPartyAssets = listOf(
+    ThirdPartyAsset(
+        name = "Icons by Lordicon",
+        subtitle = "Animated icons used on the downtime overlay",
+        url = "https://lordicon.com/",
+    ),
+)
+
 @Composable
 fun Acknowledgements(
     modifier: Modifier = Modifier,
     viewModel: AcknowledgementsViewModel = viewModel(),
 ) {
     val ossLibraries by viewModel.ossLibraries.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     PreferenceLayoutLazyColumn(
         label = stringResource(id = R.string.acknowledgements),
         modifier = modifier,
     ) {
-        preferenceGroupItems(ossLibraries, isFirstChild = true) { _, library ->
+        preferenceGroupItems(
+            items = thirdPartyAssets,
+            isFirstChild = true,
+            heading = { "Icons & Animations" },
+        ) { _, asset ->
+            ClickablePreference(
+                label = asset.name,
+                subtitle = asset.subtitle,
+                onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, asset.url.toUri())
+                    if (intent.resolveActivity(context.packageManager) != null) {
+                        context.startActivity(intent)
+                    }
+                },
+            )
+        }
+        preferenceGroupItems(
+            ossLibraries,
+            isFirstChild = false,
+            heading = { "Open Source Libraries" },
+        ) { _, library ->
             OssLibraryItem(
                 name = library.name,
                 license = library.license,

@@ -102,6 +102,7 @@ protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.
 # Other
 android-desugarJdkLibs = "com.android.tools:desugar_jdk_libs:2.1.5"
 airbnb-lottie = "com.airbnb.android:lottie:6.7.1"
+airbnb-lottie-compose = "com.airbnb.android:lottie-compose:6.7.1"
 
 # Lawnchair-TODO: Migrate it to the latest version once jitpack publishing is fixed
 # LC-Note: This specific commit is needed because of 16kb compatibility

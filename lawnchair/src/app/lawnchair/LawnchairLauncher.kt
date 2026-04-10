@@ -858,6 +858,24 @@ class LawnchairLauncher : QuickstepLauncher() {
         return registrationOverlayManager?.isOverlayCurrentlyVisible() ?: false
     }
 
+    /**
+     * Debug only: preview the downtime overlay with a given routine type.
+     * Types: bedtime, school, dinner, custom.
+     */
+    fun debugPreviewDowntimeOverlay(routineType: String) {
+        android.util.Log.d("LawnchairLauncher", "debugPreviewDowntimeOverlay($routineType)")
+        downtimeOverlayManager?.debugPreview(routineType)
+    }
+
+    /** Debug only: hide the downtime overlay if currently shown. */
+    fun debugHideDowntimeOverlay() {
+        downtimeOverlayManager?.debugHide()
+    }
+
+    fun isDowntimeOverlayVisible(): Boolean {
+        return downtimeOverlayManager?.isOverlayCurrentlyVisible() ?: false
+    }
+
     private fun restartIfPending() {
         when {
             sRestartFlags and FLAG_RESTART != 0 -> lawnchairApp.restart(false)

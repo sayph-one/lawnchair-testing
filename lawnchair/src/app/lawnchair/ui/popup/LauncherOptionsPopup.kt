@@ -166,9 +166,47 @@ object LauncherOptionsPopup {
                     true
                 }
             )
+
+            // Preview downtime overlay (pick routine type)
+            options.add(
+                OptionItem(
+                    "Preview Downtime Overlay",
+                    launcher.getDrawable(android.R.drawable.ic_lock_lock),
+                    LauncherEvent.IGNORE
+                ) { view ->
+                    showDowntimePreviewChooser(view)
+                    true
+                }
+            )
         }
 
         return options
+    }
+
+    private fun showDowntimePreviewChooser(view: View) {
+        try {
+            val launcher = Launcher.getLauncher(view.context)
+            if (launcher !is app.lawnchair.LawnchairLauncher) return
+
+            val types = arrayOf("Bedtime", "School", "Dinner", "Custom", "Hide Overlay")
+            val typeKeys = arrayOf("bedtime", "school", "dinner", "custom")
+
+            AlertDialog.Builder(launcher)
+                .setTitle("Preview Downtime Overlay")
+                .setItems(types) { _, which ->
+                    if (which == types.size - 1) {
+                        launcher.debugHideDowntimeOverlay()
+                        Toast.makeText(launcher, "Downtime overlay hidden", Toast.LENGTH_SHORT).show()
+                    } else {
+                        launcher.debugPreviewDowntimeOverlay(typeKeys[which])
+                        Toast.makeText(launcher, "Previewing ${types[which]}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e("LauncherOptionsPopup", "Failed to show downtime preview chooser", e)
+        }
     }
 
     private fun showDebugRegistration(view: View) {

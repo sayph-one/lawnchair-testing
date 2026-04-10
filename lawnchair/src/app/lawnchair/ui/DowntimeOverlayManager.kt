@@ -3,61 +3,58 @@ package app.lawnchair.ui
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
-import android.util.TypedValue
-import android.view.Gravity
-import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import app.lawnchair.ui.downtime.DowntimeContact
+import app.lawnchair.ui.downtime.DowntimeScreen
 import app.lawnchair.util.SayphDowntimeChecker
 
+/**
+ * Manages a full-screen Compose overlay shown over the Lawnchair launcher while a
+ * downtime routine is active. The overlay is added to the Activity's decor view so
+ * it sits above all launcher content.
+ */
 class DowntimeOverlayManager(
     private val context: Context,
-    private val parentContainer: ViewGroup
+    private val parentContainer: ViewGroup,
 ) {
 
     private var overlayContainer: FrameLayout? = null
+    private var composeView: ComposeView? = null
     private var isOverlayVisible = false
-    private val handler = Handler(Looper.getMainLooper())
-    private var countdownRunnable: Runnable? = null
+
+    // Currently displayed state; used to decide whether to recompose in-place.
+    private var currentType: String = ""
+    private var currentName: String = ""
+    private var currentEndMillis: Long = 0L
+
+    // Mutable state driving the Compose content so we can update without
+    // tearing down the overlay (keeps Lottie animation running smoothly).
+    private val contentState = ComposeContentState()
 
     private companion object {
         const val TAG = "DowntimeOverlay"
-        const val OVERLAY_COLOR = 0xFF1d4576.toInt()
-        const val COUNTDOWN_INTERVAL_MS = 60_000L // Update every minute
     }
 
     fun updateOverlayVisibility() {
         val status = SayphDowntimeChecker.getDowntimeStatus(context)
 
-        Log.d(TAG, "updateOverlayVisibility - inDowntime: ${status.isInDowntime}, isOverlayVisible: $isOverlayVisible")
+        Log.d(TAG, "updateOverlayVisibility - inDowntime=${status.isInDowntime}, visible=$isOverlayVisible")
 
         if (status.isInDowntime && !isOverlayVisible) {
             showDowntimeOverlay(status.routineName, status.routineType, status.endTimeMillis)
         } else if (status.isInDowntime && isOverlayVisible) {
-            // Update the countdown and routine name
-            updateCountdown(status.endTimeMillis)
+            updateContent(status.routineName, status.routineType, status.endTimeMillis)
         } else if (!status.isInDowntime && isOverlayVisible) {
             hideDowntimeOverlay()
-        }
-    }
-
-    private fun getLockTitle(type: String?): String {
-        return when (type?.lowercase()) {
-            "bedtime" -> "Bedtime lock enabled"
-            "school" -> "School lock enabled"
-            "dinner" -> "Dinner lock enabled"
-            else -> "Device lock enabled"
         }
     }
 
@@ -65,41 +62,52 @@ class DowntimeOverlayManager(
         if (isOverlayVisible) return
 
         try {
-            val inflater = LayoutInflater.from(context)
-            val layoutResId = context.resources.getIdentifier(
-                "downtime_overlay_widget", "layout", context.packageName
-            )
+            currentName = routineName
+            currentType = routineType
+            currentEndMillis = endTimeMillis
+
+            contentState.routineType = routineType
+            contentState.routineName = routineName
+            contentState.endTimeMillis = endTimeMillis
+            contentState.contacts = loadContacts()
+
+            val compose = ComposeView(context).apply {
+                setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+                setContent {
+                    val type by remember { contentState.routineTypeState }
+                    val name by remember { contentState.routineNameState }
+                    val end by remember { contentState.endTimeMillisState }
+                    val contacts by remember { contentState.contactsState }
+
+                    DowntimeScreen(
+                        routineType = type,
+                        routineName = name,
+                        endTimeMillis = end,
+                        contacts = contacts,
+                        onCallContact = { contact ->
+                            launchDialer(contact)
+                        },
+                    )
+                }
+            }
+            composeView = compose
 
             val container = FrameLayout(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
+                    ViewGroup.LayoutParams.MATCH_PARENT,
                 )
-                setBackgroundColor(OVERLAY_COLOR)
-                fitsSystemWindows = false
-                clipToPadding = false
                 isClickable = true
                 isFocusable = true
                 elevation = 100f
-            }
-
-            if (layoutResId != 0) {
-                val overlayView = inflater.inflate(layoutResId, container, false)
-                setupOverlayContent(overlayView, routineName, routineType, endTimeMillis)
-
-                val displayMetrics = context.resources.displayMetrics
-                val topMargin = (displayMetrics.heightPixels * 0.20).toInt()
-                val overlayParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                    this.topMargin = topMargin
-                }
-                container.addView(overlayView, overlayParams)
-            } else {
-                Log.w(TAG, "Layout not found, creating fallback")
-                createFallbackContent(container, routineType, endTimeMillis)
+                fitsSystemWindows = false
+                addView(
+                    compose,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
+                )
             }
 
             val decorView = (context as? Activity)?.window?.decorView as? ViewGroup
@@ -108,209 +116,55 @@ class DowntimeOverlayManager(
             overlayContainer = container
             isOverlayVisible = true
 
-            startCountdownUpdates(endTimeMillis)
-            Log.d(TAG, "Downtime overlay shown - routine: $routineName, type: $routineType")
-
+            Log.d(TAG, "Overlay shown - routine=$routineName type=$routineType")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to show downtime overlay", e)
+            Log.e(TAG, "Failed to show overlay", e)
         }
     }
 
-    private fun setupOverlayContent(view: View, routineName: String, routineType: String, endTimeMillis: Long) {
-        // Set heading based on routine type
-        val headingId = context.resources.getIdentifier("downtime_heading", "id", context.packageName)
-        view.findViewById<TextView?>(headingId)?.text = getLockTitle(routineType)
-
-        val routineNameId = context.resources.getIdentifier("downtime_routine_name", "id", context.packageName)
-        view.findViewById<TextView?>(routineNameId)?.text = routineName
-
-        val countdownId = context.resources.getIdentifier("downtime_countdown", "id", context.packageName)
-        view.findViewById<TextView?>(countdownId)?.text = formatCountdown(endTimeMillis)
-
-        // Add emergency contacts
-        val containerId = context.resources.getIdentifier("downtime_contacts_container", "id", context.packageName)
-        val headerId = context.resources.getIdentifier("downtime_emergency_header", "id", context.packageName)
-        val contactsContainer = view.findViewById<LinearLayout?>(containerId)
-        val headerView = view.findViewById<TextView?>(headerId)
-
-        val contacts = SayphDowntimeChecker.getEmergencyContacts(context)
-        if (contacts.isNotEmpty() && contactsContainer != null) {
-            headerView?.visibility = View.VISIBLE
-            contacts.forEach { contact ->
-                contactsContainer.addView(createContactCard(contact))
-            }
+    private fun updateContent(routineName: String, routineType: String, endTimeMillis: Long) {
+        if (routineType != currentType) {
+            currentType = routineType
+            contentState.routineType = routineType
         }
-    }
-
-    private fun createContactCard(contact: SayphDowntimeChecker.EmergencyContact): View {
-        val dp = { value: Int ->
-            TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), context.resources.displayMetrics).toInt()
+        if (routineName != currentName) {
+            currentName = routineName
+            contentState.routineName = routineName
         }
-
-        val cardBg = GradientDrawable().apply {
-            setColor(0x33FFFFFF)
-            cornerRadius = dp(12).toFloat()
+        if (endTimeMillis != currentEndMillis) {
+            currentEndMillis = endTimeMillis
+            contentState.endTimeMillis = endTimeMillis
         }
-
-        val row = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = cardBg
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(8) }
+        val fresh = loadContacts()
+        if (fresh != contentState.contacts) {
+            contentState.contacts = fresh
         }
-
-        val textContainer = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        }
-
-        val nameText = TextView(context).apply {
-            text = contact.name
-            setTextColor(Color.WHITE)
-            textSize = 16f
-            setTypeface(null, Typeface.BOLD)
-        }
-
-        val phoneText = TextView(context).apply {
-            text = contact.phone
-            setTextColor(0xB3FFFFFF.toInt())
-            textSize = 13f
-        }
-
-        textContainer.addView(nameText)
-        textContainer.addView(phoneText)
-        row.addView(textContainer)
-
-        val callButton = Button(context).apply {
-            text = "Call"
-            textSize = 14f
-            setTextColor(Color.WHITE)
-            setTypeface(null, Typeface.BOLD)
-            val btnBg = GradientDrawable().apply {
-                setColor(0xFF2E7D32.toInt()) // Green
-                cornerRadius = dp(8).toFloat()
-            }
-            background = btnBg
-            setPadding(dp(20), dp(8), dp(20), dp(8))
-            minWidth = 0
-            minimumWidth = 0
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { marginStart = dp(12) }
-
-            setOnClickListener {
-                try {
-                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phone}"))
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to initiate call to ${contact.name}", e)
-                }
-            }
-        }
-
-        row.addView(callButton)
-        return row
-    }
-
-    private fun createFallbackContent(container: FrameLayout, routineType: String, endTimeMillis: Long) {
-        val layout = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(60, 50, 60, 50)
-        }
-
-        layout.addView(TextView(context).apply {
-            text = getLockTitle(routineType)
-            textSize = 22f
-            setTextColor(Color.WHITE)
-            setTypeface(null, Typeface.BOLD)
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 16)
-        })
-
-        layout.addView(TextView(context).apply {
-            tag = "countdown_text"
-            text = formatCountdown(endTimeMillis)
-            textSize = 18f
-            setTextColor(Color.WHITE)
-            setTypeface(null, Typeface.BOLD)
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 40)
-        })
-
-        val params = FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { gravity = Gravity.CENTER }
-
-        container.addView(layout, params)
     }
 
     private fun hideDowntimeOverlay() {
-        stopCountdownUpdates()
         overlayContainer?.let { container ->
             val decorView = (context as? Activity)?.window?.decorView as? ViewGroup
             decorView?.removeView(container) ?: parentContainer.removeView(container)
-            overlayContainer = null
-            isOverlayVisible = false
-            Log.d(TAG, "Downtime overlay hidden")
+        }
+        overlayContainer = null
+        composeView = null
+        isOverlayVisible = false
+        Log.d(TAG, "Overlay hidden")
+    }
+
+    private fun loadContacts(): List<DowntimeContact> {
+        return SayphDowntimeChecker.getEmergencyContacts(context).map {
+            DowntimeContact(name = it.name, phone = it.phone)
         }
     }
 
-    private fun startCountdownUpdates(endTimeMillis: Long) {
-        stopCountdownUpdates()
-        countdownRunnable = object : Runnable {
-            override fun run() {
-                updateCountdown(endTimeMillis)
-                handler.postDelayed(this, COUNTDOWN_INTERVAL_MS)
-            }
-        }
-        handler.postDelayed(countdownRunnable!!, COUNTDOWN_INTERVAL_MS)
-    }
-
-    private fun stopCountdownUpdates() {
-        countdownRunnable?.let { handler.removeCallbacks(it) }
-        countdownRunnable = null
-    }
-
-    private fun updateCountdown(endTimeMillis: Long) {
-        val countdownText = formatCountdown(endTimeMillis)
-        overlayContainer?.let { container ->
-            // Try XML layout first
-            val countdownId = context.resources.getIdentifier("downtime_countdown", "id", context.packageName)
-            container.findViewById<TextView?>(countdownId)?.text = countdownText
-
-            // Also try fallback tag
-            container.findViewWithTag<TextView>("countdown_text")?.text = countdownText
-        }
-
-        // Check if downtime has ended
-        if (endTimeMillis > 0 && System.currentTimeMillis() >= endTimeMillis) {
-            Log.d(TAG, "Downtime period ended — refreshing")
-            SayphDowntimeChecker.forceRefresh()
-            updateOverlayVisibility()
-        }
-    }
-
-    private fun formatCountdown(endTimeMillis: Long): String {
-        if (endTimeMillis <= 0) return "Re-enables soon"
-
-        val remainingMs = endTimeMillis - System.currentTimeMillis()
-        if (remainingMs <= 0) return "Re-enables soon"
-
-        val hours = remainingMs / (1000 * 60 * 60)
-        val minutes = (remainingMs % (1000 * 60 * 60)) / (1000 * 60)
-
-        return when {
-            hours > 0 -> "Re-enables in ${hours}h ${minutes}m"
-            minutes > 0 -> "Re-enables in ${minutes}m"
-            else -> "Re-enables soon"
+    private fun launchDialer(contact: DowntimeContact) {
+        try {
+            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phone}"))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch dialer for ${contact.name}", e)
         }
     }
 
@@ -321,8 +175,74 @@ class DowntimeOverlayManager(
 
     fun isOverlayCurrentlyVisible(): Boolean = isOverlayVisible
 
-    fun destroy() {
-        stopCountdownUpdates()
+    /**
+     * Debug only: force-show the overlay with synthetic state so designers
+     * and developers can preview each routine type without waiting for a
+     * real routine to trigger.
+     */
+    fun debugPreview(routineType: String) {
+        if (isOverlayVisible) {
+            hideDowntimeOverlay()
+        }
+
+        val previewName = when (routineType.lowercase()) {
+            "bedtime" -> "Bedtime"
+            "school" -> "School Hours"
+            "dinner" -> "Dinner Time"
+            else -> "Preview Routine"
+        }
+        // Synthetic end time: 8 hours from now for bedtime, shorter for others
+        val previewDurationMs = when (routineType.lowercase()) {
+            "bedtime" -> 8L * 60 * 60 * 1000
+            "school" -> 6L * 60 * 60 * 1000
+            "dinner" -> 45L * 60 * 1000
+            else -> 2L * 60 * 60 * 1000
+        }
+        val previewEnd = System.currentTimeMillis() + previewDurationMs
+
+        showDowntimeOverlay(previewName, routineType, previewEnd)
+
+        // Inject sample emergency contacts so the bottom section renders
+        contentState.contacts = listOf(
+            DowntimeContact(name = "Mum", phone = "+447700900001"),
+            DowntimeContact(name = "Dad", phone = "+447700900002"),
+            DowntimeContact(name = "Grandma", phone = "+447700900003"),
+        )
+    }
+
+    /** Debug only: hide whatever is currently shown. */
+    fun debugHide() {
         hideDowntimeOverlay()
+    }
+
+    fun destroy() {
+        hideDowntimeOverlay()
+    }
+
+    /**
+     * Holds mutable Compose state so the UI can update in-place without
+     * tearing down the overlay and restarting animations.
+     */
+    private class ComposeContentState {
+        val routineTypeState = androidx.compose.runtime.mutableStateOf("")
+        val routineNameState = androidx.compose.runtime.mutableStateOf("")
+        val endTimeMillisState = androidx.compose.runtime.mutableStateOf(0L)
+        val contactsState = androidx.compose.runtime.mutableStateOf<List<DowntimeContact>>(emptyList())
+
+        var routineType: String
+            get() = routineTypeState.value
+            set(value) { routineTypeState.value = value }
+
+        var routineName: String
+            get() = routineNameState.value
+            set(value) { routineNameState.value = value }
+
+        var endTimeMillis: Long
+            get() = endTimeMillisState.value
+            set(value) { endTimeMillisState.value = value }
+
+        var contacts: List<DowntimeContact>
+            get() = contactsState.value
+            set(value) { contactsState.value = value }
     }
 }
