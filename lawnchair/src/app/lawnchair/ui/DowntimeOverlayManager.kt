@@ -159,10 +159,29 @@ class DowntimeOverlayManager(
     }
 
     private fun launchDialer(contact: DowntimeContact) {
+        // Place the call directly via ACTION_CALL. This bypasses the Dialer's
+        // blocked launcher activity and goes straight to DialerActivity (the
+        // ACTION_CALL handler), so emergency calls still work during downtime.
+        // Falls back to ACTION_DIAL if CALL_PHONE permission is denied.
+        val callPermission = android.Manifest.permission.CALL_PHONE
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(context, callPermission) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
         try {
-            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phone}"))
+            val action = if (granted) Intent.ACTION_CALL else Intent.ACTION_DIAL
+            val intent = Intent(action, Uri.parse("tel:${contact.phone}"))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
+        } catch (e: SecurityException) {
+            // Fallback if CALL_PHONE was somehow denied at startActivity time
+            Log.w(TAG, "ACTION_CALL denied, falling back to ACTION_DIAL", e)
+            try {
+                val fallback = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${contact.phone}"))
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(fallback)
+            } catch (fallbackError: Exception) {
+                Log.e(TAG, "Both ACTION_CALL and ACTION_DIAL failed", fallbackError)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch dialer for ${contact.name}", e)
         }
