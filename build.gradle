@@ -158,7 +158,7 @@ android {
     defaultConfig {
         // Lawnchair Launcher 15.0 Beta 2.1
         // See CONTRIBUTING.md#versioning-scheme
-        versionCode 15_00_02_02_07  // increment for knox
+        versionCode 15_00_02_02_09  // increment for knox
         versionName "${versionDisplayName}"
         buildConfigField "String", "VERSION_DISPLAY_NAME", "\"${versionDisplayName}\""
         buildConfigField "String", "MAJOR_VERSION", "\"${majorVersion}\""
