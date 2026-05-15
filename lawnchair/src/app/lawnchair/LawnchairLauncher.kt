@@ -538,16 +538,14 @@ class LawnchairLauncher : QuickstepLauncher() {
             },
         )
 
-        // ADD REGISTRATION STATUS CHECK HERE
-        android.util.Log.d("LawnchairLauncher", "onResume() called - checking registration status")
+        // Re-evaluate every overlay through the single precedence chain so coming back
+        // from the wizard or another foreground app picks up any state change — including
+        // permissions transitions, which the previous registration-then-downtime ordering
+        // missed entirely.
+        android.util.Log.d("LawnchairLauncher", "onResume() called - refreshing overlay precedence")
         AllowedApps.updateRegistrationCache(this)
         app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this)
-        registrationOverlayManager?.refreshStatus()
-
-        // Check downtime status (only if registration overlay is not showing)
-        if (registrationOverlayManager?.isOverlayCurrentlyVisible() != true) {
-            downtimeOverlayManager?.refreshStatus()
-        }
+        refreshOverlayPrecedence()
 
         // Missing apps are added via finishBindingItems() callback after model loads.
     }
