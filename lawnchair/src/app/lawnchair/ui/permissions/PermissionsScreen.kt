@@ -41,14 +41,16 @@ import androidx.compose.ui.unit.sp
 import app.lawnchair.ui.downtime.DowntimeContact
 
 /**
- * Visual constants for the permissions overlay. Uses a warm amber palette to convey
- * "needs attention" — distinct from any downtime routine theme (which use cooler tones
- * appropriate to the routine type) and from the registration overlay (deep navy).
+ * Visual constants for the permissions overlay — Sayph brand colours.
+ * Mirrors the downtime "custom" theme (deep navy gradient + bright red accent) so the
+ * permissions overlay and downtime overlay feel like a single design family.
+ *
+ * Palette source: `SayphAgent/.../ui/theme/Color.kt` (SayphRed, navy shades).
  */
 private object PermissionsPalette {
-    val gradientStart = Color(0xFF3A2412)
-    val gradientEnd = Color(0xFF6E3A12)
-    val accentColor = Color(0xFFFFC266) // warm amber
+    val gradientStart = Color(0xFF0B1929) // matches DowntimeThemes.custom
+    val gradientEnd = Color(0xFF1F3A5F)
+    val accentColor = Color(0xFFFE5757)   // SayphRed
 }
 
 /**
@@ -204,7 +206,7 @@ private fun OpenSetupButton(
     ) {
         Text(
             text = "Open setup",
-            color = Color(0xFF3A2412),
+            color = Color.White,
             style = TextStyle(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
