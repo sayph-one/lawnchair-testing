@@ -3,26 +3,31 @@ package app.lawnchair.ui
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.view.Gravity
-import android.view.View
+import android.net.Uri
+import android.telecom.TelecomManager
+import android.util.Log
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import app.lawnchair.ui.downtime.DowntimeContact
+import app.lawnchair.ui.permissions.PermissionsScreen
 import app.lawnchair.util.AllowedApps
+import app.lawnchair.util.SayphDowntimeChecker
 import app.lawnchair.util.SayphPermissionsChecker
 
 /**
- * Full-screen overlay shown when the device is registered but is missing one or more
- * permissions the Sayph Agent requires. Tapping the primary button deep-links into the
- * Agent's `PermissionsWizardActivity` via the `com.sayph.action.OPEN_PERMISSIONS_WIZARD`
- * intent action.
+ * Full-screen Compose overlay shown when the device is registered but missing one or more
+ * required permissions. Visual language mirrors [DowntimeOverlayManager] — gradient
+ * background, hero icon with glow, emergency contacts pinned to the bottom — but uses a
+ * warm amber palette to distinguish "needs setup" from the bedtime/school routine themes.
  *
- * Mirrors the structure of [RegistrationOverlayManager] (programmatic LinearLayout overlay
- * attached to the decor view) rather than [DowntimeOverlayManager] (Compose + Lottie). Visual
- * consistency with the registration overlay is intentional — both represent a "device not
- * ready" state for which the launcher is blocked.
+ * "Open setup" deep-links into the Sayph Agent's `PermissionsWizardActivity` via the
+ * `com.sayph.action.OPEN_PERMISSIONS_WIZARD` action.
  */
 class PermissionsOverlayManager(
     private val context: Context,
@@ -32,14 +37,15 @@ class PermissionsOverlayManager(
     var onPermissionsChanged: (() -> Unit)? = null
 
     private var overlayContainer: FrameLayout? = null
+    private var composeView: ComposeView? = null
     private var isOverlayVisible = false
+
+    // Mutable state driving the Compose content so we can refresh contacts without
+    // tearing down the overlay.
+    private val contentState = ComposeContentState()
 
     private companion object {
         const val TAG = "PermissionsOverlay"
-        const val OVERLAY_COLOR = 0xFF1d4576.toInt()
-        const val PRIMARY_TEXT_COLOR = 0xFFFFFFFF.toInt()
-        const val BUTTON_BG_COLOR = 0xFFFFFFFF.toInt()
-        const val BUTTON_TEXT_COLOR = 0xFF1d4576.toInt()
         const val WIZARD_ACTION = "com.sayph.action.OPEN_PERMISSIONS_WIZARD"
         const val SAYPH_AGENT_PACKAGE = "com.sayph.sayphagent"
     }
@@ -54,86 +60,56 @@ class PermissionsOverlayManager(
 
     fun updateOverlayVisibility() {
         val permissionsOk = SayphPermissionsChecker.arePermissionsOk(context)
-        android.util.Log.d(TAG, "updateOverlayVisibility - permissionsOk=$permissionsOk, visible=$isOverlayVisible")
+        Log.d(TAG, "updateOverlayVisibility - permissionsOk=$permissionsOk, visible=$isOverlayVisible")
 
         if (!permissionsOk && !isOverlayVisible) {
-            showPermissionsOverlay()
+            showOverlay()
             onPermissionsChanged?.invoke()
+        } else if (!permissionsOk && isOverlayVisible) {
+            // Still missing perms — refresh the contacts in case they changed.
+            contentState.contacts = loadContacts()
         } else if (permissionsOk && isOverlayVisible) {
-            hidePermissionsOverlay()
+            hideOverlay()
             onPermissionsChanged?.invoke()
         }
     }
 
-    private fun showPermissionsOverlay() {
+    private fun showOverlay() {
         if (isOverlayVisible) return
 
         try {
-            val displayMetrics = context.resources.displayMetrics
-            val screenWidth = displayMetrics.widthPixels
-            val minWidth = (screenWidth * 0.90).toInt()
+            contentState.contacts = loadContacts()
 
-            val card = LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                setBackgroundColor(OVERLAY_COLOR)
-                setPadding(60, 50, 60, 50)
-                minimumWidth = minWidth
-            }
-
-            val titleText = TextView(context).apply {
-                text = "Set-up incomplete"
-                textSize = 22f
-                setTextColor(PRIMARY_TEXT_COLOR)
-                gravity = Gravity.CENTER
-                setPadding(10, 0, 10, 20)
-            }
-
-            val bodyText = TextView(context).apply {
-                text = "Sayph needs a few more permissions before this device can be used. " +
-                    "Open the Sayph setup to grant them."
-                textSize = 14f
-                setTextColor(PRIMARY_TEXT_COLOR)
-                gravity = Gravity.CENTER
-                setPadding(10, 0, 10, 40)
-            }
-
-            val openButton = Button(context).apply {
-                text = "Open setup"
-                textSize = 16f
-                setTextColor(BUTTON_TEXT_COLOR)
-                setBackgroundColor(BUTTON_BG_COLOR)
-                setPadding(48, 20, 48, 20)
-                minimumWidth = 200
-                setOnClickListener {
-                    android.util.Log.d(TAG, "Open setup button clicked")
-                    openPermissionsWizard()
+            val compose = ComposeView(context).apply {
+                setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+                setContent {
+                    val contacts by remember { contentState.contactsState }
+                    PermissionsScreen(
+                        contacts = contacts,
+                        onOpenWizard = { openPermissionsWizard() },
+                        onCallContact = { contact -> launchDialer(contact) },
+                    )
                 }
             }
-
-            card.addView(titleText)
-            card.addView(bodyText)
-            card.addView(openButton)
+            composeView = compose
 
             val container = FrameLayout(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 )
-                setBackgroundColor(OVERLAY_COLOR)
-                fitsSystemWindows = false
-                clipToPadding = false
                 isClickable = true
                 isFocusable = true
                 elevation = 100f
+                fitsSystemWindows = false
+                addView(
+                    compose,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
+                )
             }
-
-            val cardParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                gravity = Gravity.CENTER
-            }
-            container.addView(card, cardParams)
 
             val decorView = (context as? Activity)?.window?.decorView as? ViewGroup
                 ?: parentContainer
@@ -141,20 +117,27 @@ class PermissionsOverlayManager(
             overlayContainer = container
             isOverlayVisible = true
 
-            android.util.Log.d(TAG, "Overlay shown")
+            Log.d(TAG, "Overlay shown")
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to show permissions overlay", e)
+            Log.e(TAG, "Failed to show overlay", e)
         }
     }
 
-    private fun hidePermissionsOverlay() {
+    private fun hideOverlay() {
         overlayContainer?.let { container ->
             val decorView = (context as? Activity)?.window?.decorView as? ViewGroup
             decorView?.removeView(container) ?: parentContainer.removeView(container)
         }
         overlayContainer = null
+        composeView = null
         isOverlayVisible = false
-        android.util.Log.d(TAG, "Overlay hidden")
+        Log.d(TAG, "Overlay hidden")
+    }
+
+    private fun loadContacts(): List<DowntimeContact> {
+        return SayphDowntimeChecker.getEmergencyContacts(context).map {
+            DowntimeContact(name = it.name, phone = it.phone)
+        }
     }
 
     private fun openPermissionsWizard() {
@@ -165,16 +148,51 @@ class PermissionsOverlayManager(
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to open permissions wizard", e)
-            // Fallback: try opening the agent's launcher
+            Log.e(TAG, "Failed to open permissions wizard", e)
             try {
                 val fallback = context.packageManager.getLaunchIntentForPackage(SAYPH_AGENT_PACKAGE)
-                if (fallback != null) {
-                    context.startActivity(fallback)
-                }
+                if (fallback != null) context.startActivity(fallback)
             } catch (inner: Exception) {
-                android.util.Log.e(TAG, "Failed to open Sayph Agent fallback", inner)
+                Log.e(TAG, "Sayph Agent launch fallback failed", inner)
             }
+        }
+    }
+
+    /**
+     * Place a call to an emergency contact via [TelecomManager.placeCall], same path used
+     * by the downtime overlay. Bypasses the dialer chooser by routing through the system
+     * default phone app. Falls back to ACTION_DIAL targeted at the default dialer if
+     * CALL_PHONE permission is not granted (which is itself a tracked missing permission
+     * on first launch, but emergency calling is meant to keep working in degraded states).
+     */
+    private fun launchDialer(contact: DowntimeContact) {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.CALL_PHONE,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        val telecom = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+        val uri = Uri.fromParts("tel", contact.phone, null)
+
+        if (granted && telecom != null) {
+            try {
+                telecom.placeCall(uri, null)
+                return
+            } catch (e: SecurityException) {
+                Log.w(TAG, "placeCall denied, falling back to ACTION_DIAL", e)
+            } catch (e: Exception) {
+                Log.w(TAG, "placeCall failed, falling back to ACTION_DIAL", e)
+            }
+        }
+
+        try {
+            val fallback = Intent(Intent.ACTION_DIAL, uri).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                telecom?.defaultDialerPackage?.let { setPackage(it) }
+            }
+            context.startActivity(fallback)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch dialer for ${contact.name}", e)
         }
     }
 
@@ -183,18 +201,25 @@ class PermissionsOverlayManager(
         updateOverlayVisibility()
     }
 
-    /**
-     * Hide the permissions overlay regardless of underlying state. Used by the launcher's
-     * overlay-precedence logic when a higher-priority overlay (registration) must take over.
-     */
+    /** Hide the overlay regardless of state — used by the launcher's precedence chain. */
     fun forceHide() {
-        if (isOverlayVisible) hidePermissionsOverlay()
+        if (isOverlayVisible) hideOverlay()
     }
 
     fun isOverlayCurrentlyVisible(): Boolean = isOverlayVisible
 
     fun destroy() {
         AllowedApps.removePermissionsListener(permissionsListener)
-        hidePermissionsOverlay()
+        hideOverlay()
+    }
+
+    /** Holds mutable Compose state so the contacts list can refresh in-place. */
+    private class ComposeContentState {
+        val contactsState = androidx.compose.runtime.mutableStateOf<List<DowntimeContact>>(emptyList())
+        var contacts: List<DowntimeContact>
+            get() = contactsState.value
+            set(value) {
+                contactsState.value = value
+            }
     }
 }

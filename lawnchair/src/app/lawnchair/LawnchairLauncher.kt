@@ -630,8 +630,18 @@ class LawnchairLauncher : QuickstepLauncher() {
      * The lower-priority overlays are explicitly force-hidden whenever a higher-priority one
      * takes over, so that ordering of state changes (e.g. permissions revoked while downtime
      * is active) doesn't leave a stale overlay underneath in the wrong z-order.
+     *
+     * All three checkers are force-refreshed before reading so the precedence decision is
+     * never made against stale cache. Without this, a precedence refresh triggered by (say)
+     * the downtime broadcast would re-evaluate against whatever `permissionsOk` value was
+     * last cached — which can be `true` even when the agent has since detected missing
+     * permissions but hasn't broadcast the change yet.
      */
     private fun refreshOverlayPrecedence() {
+        app.lawnchair.util.SayphRegistrationChecker.forceRefresh()
+        app.lawnchair.util.SayphPermissionsChecker.forceRefresh()
+        app.lawnchair.util.SayphDowntimeChecker.forceRefresh()
+
         val needsRegistration = AllowedApps.needsRegistration(this)
         val permissionsOk = app.lawnchair.util.SayphPermissionsChecker.arePermissionsOk(this)
         val inDowntime = app.lawnchair.util.SayphDowntimeChecker.isInDowntime(this)
