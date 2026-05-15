@@ -112,8 +112,10 @@ class LawnchairLauncher : QuickstepLauncher() {
     private val themeProvider by unsafeLazy { ThemeProvider.INSTANCE.get(this) }
     private var registrationOverlayManager: RegistrationOverlayManager? = null
     private var downtimeOverlayManager: app.lawnchair.ui.DowntimeOverlayManager? = null
+    private var permissionsOverlayManager: app.lawnchair.ui.PermissionsOverlayManager? = null
     private var statusReceiver: AllowedApps.RegistrationStatusReceiver? = null
     private var downtimeReceiver: AllowedApps.DowntimeStatusReceiver? = null
+    private var permissionsReceiver: AllowedApps.PermissionsStatusReceiver? = null
     private var pendingMissingAppsCheck = false
     private val noStatusBarStateListener = object : StateManager.StateListener<LauncherState> {
         override fun onStateTransitionStart(toState: LauncherState) {
@@ -584,10 +586,19 @@ class LawnchairLauncher : QuickstepLauncher() {
 
             AllowedApps.addRegistrationListener {
                 android.util.Log.d("LawnchairLauncher", "=== REGISTRATION LISTENER TRIGGERED ===")
-                registrationOverlayManager?.updateOverlayVisibility()
-                // Also check downtime when registration changes (device just registered -> check downtime)
-                downtimeOverlayManager?.updateOverlayVisibility()
+                refreshOverlayPrecedence()
                 reloadWorkspaceOnRegistrationChange()  // Call the new method here too
+            }
+
+            // Initialize permissions overlay — shown when device is registered but
+            // missing required permissions (e.g. accessibility service disabled).
+            permissionsOverlayManager = app.lawnchair.ui.PermissionsOverlayManager(this, dragLayer)
+            permissionsReceiver = AllowedApps.registerPermissionsReceiver(this)
+
+            AllowedApps.addPermissionsListener {
+                android.util.Log.d("LawnchairLauncher", "=== PERMISSIONS LISTENER TRIGGERED ===")
+                refreshOverlayPrecedence()
+                reloadWorkspaceOnRegistrationChange()
             }
 
             // Initialize downtime overlay
@@ -596,20 +607,56 @@ class LawnchairLauncher : QuickstepLauncher() {
 
             AllowedApps.addDowntimeListener {
                 android.util.Log.d("LawnchairLauncher", "=== DOWNTIME LISTENER TRIGGERED ===")
-                downtimeOverlayManager?.updateOverlayVisibility()
+                refreshOverlayPrecedence()
                 reloadWorkspaceOnRegistrationChange()
             }
 
-            registrationOverlayManager?.updateOverlayVisibility()
-            // Only show downtime overlay if registration overlay is not showing
-            if (registrationOverlayManager?.isOverlayCurrentlyVisible() != true) {
-                downtimeOverlayManager?.updateOverlayVisibility()
-            }
+            refreshOverlayPrecedence()
 
             startPeriodicDebugCheck()
 
         } catch (e: Exception) {
             android.util.Log.e("LawnchairLauncher", "Failed to initialize registration overlay", e)
+        }
+    }
+
+    /**
+     * Re-evaluates which overlay (at most one) should be visible:
+     *   1. Not registered                                   → registration overlay
+     *   2. Registered but missing required permissions      → permissions overlay
+     *   3. Registered, permissions OK, in downtime          → downtime overlay
+     *   4. Otherwise                                         → no overlay
+     *
+     * The lower-priority overlays are explicitly force-hidden whenever a higher-priority one
+     * takes over, so that ordering of state changes (e.g. permissions revoked while downtime
+     * is active) doesn't leave a stale overlay underneath in the wrong z-order.
+     */
+    private fun refreshOverlayPrecedence() {
+        val needsRegistration = AllowedApps.needsRegistration(this)
+        val permissionsOk = app.lawnchair.util.SayphPermissionsChecker.arePermissionsOk(this)
+        val inDowntime = app.lawnchair.util.SayphDowntimeChecker.isInDowntime(this)
+
+        when {
+            needsRegistration -> {
+                permissionsOverlayManager?.forceHide()
+                downtimeOverlayManager?.debugHide()
+                registrationOverlayManager?.updateOverlayVisibility()
+            }
+            !permissionsOk -> {
+                registrationOverlayManager?.forceHideOverlay()
+                downtimeOverlayManager?.debugHide()
+                permissionsOverlayManager?.updateOverlayVisibility()
+            }
+            inDowntime -> {
+                registrationOverlayManager?.forceHideOverlay()
+                permissionsOverlayManager?.forceHide()
+                downtimeOverlayManager?.updateOverlayVisibility()
+            }
+            else -> {
+                registrationOverlayManager?.forceHideOverlay()
+                permissionsOverlayManager?.forceHide()
+                downtimeOverlayManager?.debugHide()
+            }
         }
     }
 
@@ -800,6 +847,9 @@ class LawnchairLauncher : QuickstepLauncher() {
             downtimeOverlayManager?.destroy()
             downtimeOverlayManager = null
 
+            permissionsOverlayManager?.destroy()
+            permissionsOverlayManager = null
+
             // Unregister broadcast receivers
             statusReceiver?.let { receiver ->
                 try {
@@ -818,6 +868,15 @@ class LawnchairLauncher : QuickstepLauncher() {
                 }
             }
             downtimeReceiver = null
+
+            permissionsReceiver?.let { receiver ->
+                try {
+                    unregisterReceiver(receiver)
+                } catch (e: Exception) {
+                    android.util.Log.w("LawnchairLauncher", "Failed to unregister permissions receiver", e)
+                }
+            }
+            permissionsReceiver = null
 
         } catch (e: Exception) {
             android.util.Log.e("LawnchairLauncher", "Failed to cleanup overlays", e)
