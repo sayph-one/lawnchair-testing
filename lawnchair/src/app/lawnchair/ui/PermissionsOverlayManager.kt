@@ -44,6 +44,17 @@ class PermissionsOverlayManager(
     // tearing down the overlay.
     private val contentState = ComposeContentState()
 
+    /**
+     * True when the device has a default phone app set. When false, calling an emergency
+     * contact via [TelecomManager.placeCall] succeeds at the telephony layer but no
+     * InCallService renders the call screen — the user is stranded with an active call and
+     * no way to hang up. We use this to dim the contact avatars and disable taps.
+     */
+    private fun hasDefaultDialer(): Boolean {
+        val telecom = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager ?: return false
+        return !telecom.defaultDialerPackage.isNullOrEmpty()
+    }
+
     private companion object {
         const val TAG = "PermissionsOverlay"
         const val WIZARD_ACTION = "com.sayph.action.OPEN_PERMISSIONS_WIZARD"
@@ -66,8 +77,9 @@ class PermissionsOverlayManager(
             showOverlay()
             onPermissionsChanged?.invoke()
         } else if (!permissionsOk && isOverlayVisible) {
-            // Still missing perms — refresh the contacts in case they changed.
+            // Still missing perms — refresh derived state in case it changed in-place.
             contentState.contacts = loadContacts()
+            contentState.callingEnabled = hasDefaultDialer()
         } else if (permissionsOk && isOverlayVisible) {
             hideOverlay()
             onPermissionsChanged?.invoke()
@@ -79,13 +91,16 @@ class PermissionsOverlayManager(
 
         try {
             contentState.contacts = loadContacts()
+            contentState.callingEnabled = hasDefaultDialer()
 
             val compose = ComposeView(context).apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                 setContent {
                     val contacts by remember { contentState.contactsState }
+                    val callingEnabled by remember { contentState.callingEnabledState }
                     PermissionsScreen(
                         contacts = contacts,
+                        callingEnabled = callingEnabled,
                         onOpenWizard = { openPermissionsWizard() },
                         onCallContact = { contact -> launchDialer(contact) },
                     )
@@ -213,13 +228,19 @@ class PermissionsOverlayManager(
         hideOverlay()
     }
 
-    /** Holds mutable Compose state so the contacts list can refresh in-place. */
+    /** Holds mutable Compose state so the contacts list and calling state can refresh in-place. */
     private class ComposeContentState {
         val contactsState = androidx.compose.runtime.mutableStateOf<List<DowntimeContact>>(emptyList())
+        val callingEnabledState = androidx.compose.runtime.mutableStateOf(false)
         var contacts: List<DowntimeContact>
             get() = contactsState.value
             set(value) {
                 contactsState.value = value
+            }
+        var callingEnabled: Boolean
+            get() = callingEnabledState.value
+            set(value) {
+                callingEnabledState.value = value
             }
     }
 }

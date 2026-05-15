@@ -66,6 +66,7 @@ fun DowntimeScreen(
     routineName: String,
     endTimeMillis: Long,
     contacts: List<DowntimeContact>,
+    callingEnabled: Boolean = true,
     onCallContact: (DowntimeContact) -> Unit,
 ) {
     val theme = remember(routineType) { DowntimeThemes.forType(routineType) }
@@ -133,6 +134,7 @@ fun DowntimeScreen(
                 EmergencyContactsSection(
                     contacts = contacts,
                     accentColor = theme.accentColor,
+                    callingEnabled = callingEnabled,
                     onCallContact = onCallContact,
                 )
             }
@@ -254,14 +256,15 @@ private fun TimeRemainingCard(
 private fun EmergencyContactsSection(
     contacts: List<DowntimeContact>,
     accentColor: Color,
+    callingEnabled: Boolean,
     onCallContact: (DowntimeContact) -> Unit,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "NEED HELP? TAP TO CALL",
-            color = Color.White.copy(alpha = 0.5f),
+            text = if (callingEnabled) "NEED HELP? TAP TO CALL" else "EMERGENCY CONTACTS",
+            color = Color.White.copy(alpha = if (callingEnabled) 0.5f else 0.35f),
             style = TextStyle(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -278,9 +281,23 @@ private fun EmergencyContactsSection(
                 EmergencyContactAvatar(
                     contact = contact,
                     accentColor = accentColor,
+                    enabled = callingEnabled,
                     onClick = { onCallContact(contact) },
                 )
             }
+        }
+
+        if (!callingEnabled) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "Calling unavailable until the phone app is set up.",
+                color = Color.White.copy(alpha = 0.45f),
+                style = TextStyle(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                ),
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
@@ -289,6 +306,7 @@ private fun EmergencyContactsSection(
 private fun EmergencyContactAvatar(
     contact: DowntimeContact,
     accentColor: Color,
+    enabled: Boolean,
     onClick: () -> Unit,
 ) {
     val initials = remember(contact.name) {
@@ -307,7 +325,7 @@ private fun EmergencyContactAvatar(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.9f else 1f,
+        targetValue = if (pressed && enabled) 0.9f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
         label = "avatarPress",
     )
@@ -318,11 +336,18 @@ private fun EmergencyContactAvatar(
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
+                alpha = if (enabled) 1f else 0.35f
             }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
+            .then(
+                if (enabled) {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                },
             ),
     ) {
         Box(

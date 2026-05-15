@@ -71,6 +71,7 @@ class DowntimeOverlayManager(
             contentState.routineName = routineName
             contentState.endTimeMillis = endTimeMillis
             contentState.contacts = loadContacts()
+            contentState.callingEnabled = hasDefaultDialer()
 
             val compose = ComposeView(context).apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
@@ -79,12 +80,14 @@ class DowntimeOverlayManager(
                     val name by remember { contentState.routineNameState }
                     val end by remember { contentState.endTimeMillisState }
                     val contacts by remember { contentState.contactsState }
+                    val callingEnabled by remember { contentState.callingEnabledState }
 
                     DowntimeScreen(
                         routineType = type,
                         routineName = name,
                         endTimeMillis = end,
                         contacts = contacts,
+                        callingEnabled = callingEnabled,
                         onCallContact = { contact ->
                             launchDialer(contact)
                         },
@@ -140,6 +143,20 @@ class DowntimeOverlayManager(
         if (fresh != contentState.contacts) {
             contentState.contacts = fresh
         }
+        val callingEnabled = hasDefaultDialer()
+        if (callingEnabled != contentState.callingEnabled) {
+            contentState.callingEnabled = callingEnabled
+        }
+    }
+
+    /**
+     * True when the device has a default phone app set. When false, `TelecomManager.placeCall`
+     * succeeds at the telephony layer but no InCallService renders the call screen — the user
+     * gets stranded mid-call with no UI. We disable emergency-contact taps in that case.
+     */
+    private fun hasDefaultDialer(): Boolean {
+        val telecom = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager ?: return false
+        return !telecom.defaultDialerPackage.isNullOrEmpty()
     }
 
     private fun hideDowntimeOverlay() {
@@ -254,6 +271,7 @@ class DowntimeOverlayManager(
         val routineNameState = androidx.compose.runtime.mutableStateOf("")
         val endTimeMillisState = androidx.compose.runtime.mutableStateOf(0L)
         val contactsState = androidx.compose.runtime.mutableStateOf<List<DowntimeContact>>(emptyList())
+        val callingEnabledState = androidx.compose.runtime.mutableStateOf(true)
 
         var routineType: String
             get() = routineTypeState.value
@@ -270,5 +288,9 @@ class DowntimeOverlayManager(
         var contacts: List<DowntimeContact>
             get() = contactsState.value
             set(value) { contactsState.value = value }
+
+        var callingEnabled: Boolean
+            get() = callingEnabledState.value
+            set(value) { callingEnabledState.value = value }
     }
 }

@@ -14,15 +14,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Build
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,36 +29,49 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.lawnchair.ui.downtime.DowntimeContact
+import com.airbnb.lottie.LottieProperty
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.airbnb.lottie.compose.rememberLottieDynamicProperties
+import com.airbnb.lottie.compose.rememberLottieDynamicProperty
+import com.android.launcher3.R
 
 /**
  * Visual constants for the permissions overlay — Sayph brand colours.
  * Mirrors the downtime "custom" theme (deep navy gradient + bright red accent) so the
  * permissions overlay and downtime overlay feel like a single design family.
- *
- * Palette source: `SayphAgent/.../ui/theme/Color.kt` (SayphRed, navy shades).
  */
 private object PermissionsPalette {
-    val gradientStart = Color(0xFF0B1929) // matches DowntimeThemes.custom
+    val gradientStart = Color(0xFF0B1929)
     val gradientEnd = Color(0xFF1F3A5F)
-    val accentColor = Color(0xFFFE5757)   // SayphRed
+    val accentColor = Color(0xFFFE5757) // SayphRed
 }
 
 /**
  * Full-screen overlay shown on the Lawnchair home screen when the device is registered but
- * one or more required permissions are missing. Mirrors the visual language of
- * [app.lawnchair.ui.downtime.DowntimeScreen] (gradient bg, hero element with glow, hero
- * heading, primary action, emergency contacts pinned to the bottom) so the two overlays
- * feel like a family.
+ * one or more required permissions are missing. Visual language mirrors
+ * [app.lawnchair.ui.downtime.DowntimeScreen] — Lottie hero with glow, gradient bg,
+ * emergency contacts pinned to bottom — using Sayph brand navy + red.
+ *
+ * [callingEnabled] is false when the device has no default phone app set: tapping an
+ * emergency contact in that state would route a call to the telephony stack but no
+ * InCallService would render the call UI, leaving the user with no way to hang up. When
+ * disabled, contact avatars are dimmed and tapping them is a no-op; a small note explains.
  */
 @Composable
 fun PermissionsScreen(
     contacts: List<DowntimeContact>,
+    callingEnabled: Boolean,
     onOpenWizard: () -> Unit,
     onCallContact: (DowntimeContact) -> Unit,
 ) {
@@ -84,7 +93,7 @@ fun PermissionsScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            HeroIcon(accentColor = PermissionsPalette.accentColor)
+            LottieHero(accentColor = PermissionsPalette.accentColor)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -140,6 +149,7 @@ fun PermissionsScreen(
                 EmergencyContactsSection(
                     contacts = contacts,
                     accentColor = PermissionsPalette.accentColor,
+                    callingEnabled = callingEnabled,
                     onCallContact = onCallContact,
                 )
             }
@@ -148,12 +158,34 @@ fun PermissionsScreen(
 }
 
 @Composable
-private fun HeroIcon(accentColor: Color) {
+private fun LottieHero(accentColor: Color) {
+    val composition by rememberLottieComposition(
+        LottieCompositionSpec.RawRes(R.raw.lottie_permissions_incomplete),
+    )
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations = LottieConstants.IterateForever,
+        speed = 0.6f,
+    )
+
+    // Same recolouring trick used by DowntimeScreen — every keypath tinted to the accent.
+    val dynamicProperties = rememberLottieDynamicProperties(
+        rememberLottieDynamicProperty(
+            property = LottieProperty.STROKE_COLOR,
+            value = accentColor.toArgb(),
+            keyPath = arrayOf("**"),
+        ),
+        rememberLottieDynamicProperty(
+            property = LottieProperty.COLOR,
+            value = accentColor.toArgb(),
+            keyPath = arrayOf("**"),
+        ),
+    )
+
     Box(
         modifier = Modifier.size(220.dp),
         contentAlignment = Alignment.Center,
     ) {
-        // Soft glow halo to match the Lottie hero treatment used on the downtime screen.
         Box(
             modifier = Modifier
                 .size(200.dp)
@@ -167,11 +199,11 @@ private fun HeroIcon(accentColor: Color) {
                     ),
                 ),
         )
-        Icon(
-            imageVector = Icons.Outlined.Build,
-            contentDescription = null,
-            tint = accentColor,
-            modifier = Modifier.size(96.dp),
+        LottieAnimation(
+            composition = composition,
+            progress = { progress },
+            modifier = Modifier.size(180.dp),
+            dynamicProperties = dynamicProperties,
         )
     }
 }
@@ -220,12 +252,13 @@ private fun OpenSetupButton(
 private fun EmergencyContactsSection(
     contacts: List<DowntimeContact>,
     accentColor: Color,
+    callingEnabled: Boolean,
     onCallContact: (DowntimeContact) -> Unit,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = "NEED HELP? TAP TO CALL",
-            color = Color.White.copy(alpha = 0.5f),
+            text = if (callingEnabled) "NEED HELP? TAP TO CALL" else "EMERGENCY CONTACTS",
+            color = Color.White.copy(alpha = if (callingEnabled) 0.5f else 0.35f),
             style = TextStyle(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -240,9 +273,24 @@ private fun EmergencyContactsSection(
                 EmergencyContactAvatar(
                     contact = contact,
                     accentColor = accentColor,
+                    enabled = callingEnabled,
                     onClick = { onCallContact(contact) },
                 )
             }
+        }
+
+        if (!callingEnabled) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "Calling unavailable until the phone app is set up.",
+                color = Color.White.copy(alpha = 0.45f),
+                style = TextStyle(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    lineHeight = 16.sp,
+                ),
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
@@ -251,6 +299,7 @@ private fun EmergencyContactsSection(
 private fun EmergencyContactAvatar(
     contact: DowntimeContact,
     accentColor: Color,
+    enabled: Boolean,
     onClick: () -> Unit,
 ) {
     val initials = remember(contact.name) {
@@ -269,10 +318,12 @@ private fun EmergencyContactAvatar(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.9f else 1f,
+        targetValue = if (pressed && enabled) 0.9f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
         label = "avatarPress",
     )
+
+    val disabledAlpha = 0.35f
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -280,11 +331,18 @@ private fun EmergencyContactAvatar(
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
+                alpha = if (enabled) 1f else disabledAlpha
             }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
+            .then(
+                if (enabled) {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                },
             ),
     ) {
         Box(
