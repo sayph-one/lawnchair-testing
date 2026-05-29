@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.Collections
+import app.lawnchair.util.SayphDowntimeChecker
 
 object AllowedApps {
     private val allowedBasePackages = listOf(
@@ -34,6 +35,12 @@ object AllowedApps {
     // Registration status change listeners - now thread-safe
     private val registrationListeners = Collections.synchronizedSet(mutableSetOf<() -> Unit>())
 
+    // Downtime status change listeners
+    private val downtimeListeners = Collections.synchronizedSet(mutableSetOf<() -> Unit>())
+
+    // Permissions status change listeners
+    private val permissionsListeners = Collections.synchronizedSet(mutableSetOf<() -> Unit>())
+
     // Enhanced cache with thread safety
     private val cacheLock = ReentrantReadWriteLock()
 
@@ -58,6 +65,9 @@ object AllowedApps {
 
         // If device not registered, hide all other apps
         if (!isRegistered) return false
+
+        // If device is in downtime, hide all apps
+        if (SayphDowntimeChecker.isInDowntime(context)) return false
 
         // If registered, check if it's in the allowed list
         return isInAllowedList(packageName)
@@ -312,6 +322,113 @@ object AllowedApps {
         } finally {
             cacheLock.readLock().unlock()
         }
+    }
+
+    // --- Downtime methods ---
+
+    fun isInDowntime(context: Context): Boolean {
+        return SayphDowntimeChecker.isInDowntime(context)
+    }
+
+    fun needsDowntimeOverlay(context: Context): Boolean {
+        return SayphDowntimeChecker.isInDowntime(context)
+    }
+
+    fun addDowntimeListener(listener: () -> Unit) {
+        downtimeListeners.add(listener)
+    }
+
+    fun removeDowntimeListener(listener: () -> Unit) {
+        downtimeListeners.remove(listener)
+    }
+
+    private fun notifyDowntimeChanged() {
+        downtimeListeners.forEach {
+            try { it.invoke() } catch (e: Exception) {
+                android.util.Log.w("AllowedApps", "Error invoking downtime listener", e)
+            }
+        }
+    }
+
+    fun refreshDowntimeStatus(context: Context) {
+        SayphDowntimeChecker.forceRefresh()
+        notifyDowntimeChanged()
+    }
+
+    /**
+     * Broadcast receiver to listen for downtime status changes
+     */
+    class DowntimeStatusReceiver : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == "com.sayph.DOWNTIME_STATE_CHANGED") {
+                android.util.Log.d("AllowedApps", "Received downtime status change broadcast")
+                refreshDowntimeStatus(context)
+            }
+        }
+    }
+
+    fun registerDowntimeReceiver(context: Context): DowntimeStatusReceiver {
+        val receiver = DowntimeStatusReceiver()
+        val filter = IntentFilter("com.sayph.DOWNTIME_STATE_CHANGED")
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(receiver, filter)
+        }
+        android.util.Log.d("AllowedApps", "Downtime status receiver registered")
+        return receiver
+    }
+
+    // ===== Permissions status =====
+
+    fun addPermissionsListener(listener: () -> Unit) {
+        permissionsListeners.add(listener)
+        android.util.Log.d("AllowedApps", "Permissions listener added. Total: ${permissionsListeners.size}")
+    }
+
+    fun removePermissionsListener(listener: () -> Unit) {
+        permissionsListeners.remove(listener)
+    }
+
+    private fun notifyPermissionsChanged() {
+        permissionsListeners.forEach {
+            try { it.invoke() } catch (e: Exception) {
+                android.util.Log.w("AllowedApps", "Error invoking permissions listener", e)
+            }
+        }
+    }
+
+    fun refreshPermissionsStatus(context: Context) {
+        SayphPermissionsChecker.forceRefresh()
+        notifyPermissionsChanged()
+    }
+
+    /**
+     * Broadcast receiver for `com.sayph.PERMISSIONS_STATE_CHANGED` emitted by the Agent
+     * whenever the set of missing required permissions changes. Must be registered with
+     * RECEIVER_EXPORTED on Android 13+ because the broadcast comes from a different package.
+     */
+    class PermissionsStatusReceiver : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == "com.sayph.PERMISSIONS_STATE_CHANGED") {
+                android.util.Log.d("AllowedApps", "Received permissions status change broadcast")
+                refreshPermissionsStatus(context)
+            }
+        }
+    }
+
+    fun registerPermissionsReceiver(context: Context): PermissionsStatusReceiver {
+        val receiver = PermissionsStatusReceiver()
+        val filter = IntentFilter("com.sayph.PERMISSIONS_STATE_CHANGED")
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            // The Agent sends an explicit per-package broadcast — the receiver must be
+            // exported to accept broadcasts from another package on API 33+.
+            context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            context.registerReceiver(receiver, filter)
+        }
+        android.util.Log.d("AllowedApps", "Permissions status receiver registered")
+        return receiver
     }
 
     /**
