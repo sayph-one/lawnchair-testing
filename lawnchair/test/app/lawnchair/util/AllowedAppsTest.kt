@@ -17,6 +17,8 @@ class AllowedAppsTest {
         assertTrue(AllowedApps.isInAllowedList("com.sec.android.app.clockpackage"))
         assertTrue(AllowedApps.isInAllowedList("com.sec.android.app.popupcalculator"))
         assertTrue(AllowedApps.isInAllowedList("com.sec.android.daemonapp"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.cam"))
+        assertTrue(AllowedApps.isInAllowedList("one.sayph.gallery"))
     }
 
     @Test
@@ -25,6 +27,8 @@ class AllowedAppsTest {
         assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.smsmessenger.debug"))
         assertTrue(AllowedApps.isInAllowedList("org.fossify.notes.debug"))
         assertTrue(AllowedApps.isInAllowedList("app.organicmaps.debug"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.cam.debug"))
+        assertTrue(AllowedApps.isInAllowedList("one.sayph.gallery.debug"))
     }
 
     @Test
