@@ -547,7 +547,9 @@ class LawnchairLauncher : QuickstepLauncher() {
         app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this)
         refreshOverlayPrecedence()
 
-        // Missing apps are added via finishBindingItems() callback after model loads.
+        // Catch up on allowed apps that were installed (e.g. silently via Knox Configure) while
+        // the launcher was backgrounded or its process was dead, so they appear without a reboot.
+        reconcileMissingDeckApps()
     }
 
     override fun onDestroy() {
@@ -712,6 +714,30 @@ class LawnchairLauncher : QuickstepLauncher() {
                 app.lawnchair.workspace.AllowedAppsWorkspaceManager(this@LawnchairLauncher)
                     .ensureMissingAppsOnWorkspace(model!!, dataModel, allApps)
             }
+        }
+    }
+
+    /**
+     * Deck-mode catch-up: add any allowed apps that are installed but not yet anywhere on the
+     * workspace (desktop *or* inside a folder).
+     *
+     * Non-destructive: [AllowedAppsWorkspaceManager.ensureMissingAppsOnWorkspace] only ADDS the
+     * packages missing from the entire workspace (via AOSP's space-finding pipeline, which dedupes)
+     * and never moves or removes existing items. Apps already present — including those inside
+     * folders — are detected via [com.android.launcher3.model.BgDataModel.itemsIdMap] and skipped,
+     * so this never creates duplicates. It is a cheap no-op when nothing is missing, so it is safe
+     * to call on every resume.
+     *
+     * This covers apps installed silently by Knox Configure while the launcher was backgrounded or
+     * its process was dead — cases the live onPackageAdded callback misses — without a reboot or a
+     * full model reload.
+     */
+    private fun reconcileMissingDeckApps() {
+        if (!preferenceManager2.deckLayout.firstBlocking()) return
+        val model = model ?: return
+        model.enqueueModelUpdateTask { _, dataModel, allApps ->
+            app.lawnchair.workspace.AllowedAppsWorkspaceManager(this@LawnchairLauncher)
+                .ensureMissingAppsOnWorkspace(model, dataModel, allApps)
         }
     }
 
