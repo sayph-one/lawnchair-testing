@@ -116,6 +116,7 @@ class LawnchairLauncher : QuickstepLauncher() {
     private var statusReceiver: AllowedApps.RegistrationStatusReceiver? = null
     private var downtimeReceiver: AllowedApps.DowntimeStatusReceiver? = null
     private var permissionsReceiver: AllowedApps.PermissionsStatusReceiver? = null
+    private var appPolicyReceiver: android.content.BroadcastReceiver? = null
     private var pendingMissingAppsCheck = false
     private val noStatusBarStateListener = object : StateManager.StateListener<LauncherState> {
         override fun onStateTransitionStart(toState: LauncherState) {
@@ -544,6 +545,9 @@ class LawnchairLauncher : QuickstepLauncher() {
         // missed entirely.
         android.util.Log.d("LawnchairLauncher", "onResume() called - refreshing overlay precedence")
         AllowedApps.updateRegistrationCache(this)
+        // Re-read per-app policies (e.g. music/camera turned off in the portal). This is also what
+        // makes camera changes take effect, since the agent sends no camera-change broadcast.
+        app.lawnchair.util.SayphAppPolicy.refresh(this)
         app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this)
         refreshOverlayPrecedence()
 
@@ -572,6 +576,9 @@ class LawnchairLauncher : QuickstepLauncher() {
     private fun initializeRegistrationOverlay() {
         try {
             AllowedApps.updateRegistrationCache(this)
+            // Warm the per-app policy cache before the first workspace load so disabled apps
+            // (music/camera) are filtered out on the initial bind, not only after a reload.
+            app.lawnchair.util.SayphAppPolicy.refresh(this)
             app.lawnchair.util.DebugRegistrationHelper.logRegistrationState(this)
 
             registrationOverlayManager = RegistrationOverlayManager(this, dragLayer)
@@ -608,6 +615,13 @@ class LawnchairLauncher : QuickstepLauncher() {
             AllowedApps.addDowntimeListener {
                 android.util.Log.d("LawnchairLauncher", "=== DOWNTIME LISTENER TRIGGERED ===")
                 refreshOverlayPrecedence()
+                reloadWorkspaceOnRegistrationChange()
+            }
+
+            // Listen for per-app policy changes (e.g. music turned off) and reload the workspace so
+            // the icon disappears immediately. Camera has no broadcast yet, so it relies on resume.
+            appPolicyReceiver = app.lawnchair.util.SayphAppPolicy.registerReceiver(this) {
+                android.util.Log.d("LawnchairLauncher", "=== APP POLICY CHANGED ===")
                 reloadWorkspaceOnRegistrationChange()
             }
 
@@ -911,6 +925,15 @@ class LawnchairLauncher : QuickstepLauncher() {
                 }
             }
             permissionsReceiver = null
+
+            appPolicyReceiver?.let { receiver ->
+                try {
+                    unregisterReceiver(receiver)
+                } catch (e: Exception) {
+                    android.util.Log.w("LawnchairLauncher", "Failed to unregister app policy receiver", e)
+                }
+            }
+            appPolicyReceiver = null
 
         } catch (e: Exception) {
             android.util.Log.e("LawnchairLauncher", "Failed to cleanup overlays", e)
