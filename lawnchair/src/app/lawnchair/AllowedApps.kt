@@ -190,6 +190,9 @@ object AllowedApps {
         // Sayph Agent should never be visible in app lists
         if (packageName == SAYPH_AGENT_PACKAGE) return false
 
+        // Hide apps the parent has turned off via the agent (e.g. music, camera).
+        if (SayphAppPolicy.isDisabled(packageName)) return false
+
         return allowedBasePackages.any { base ->
             packageName == base ||
                 (packageName.startsWith("$base.") &&

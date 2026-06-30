@@ -1,10 +1,17 @@
 package app.lawnchair.util
 
+import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AllowedAppsTest {
+
+    @After
+    fun resetPolicy() {
+        // Other tests in this class assume nothing is disabled by policy.
+        SayphAppPolicy.setDisabledPackagesForTesting(emptySet())
+    }
 
     @Test
     fun `exact match allowed packages are allowed`() {
@@ -58,6 +65,24 @@ class AllowedAppsTest {
     @Test
     fun `empty and blank package names are not allowed`() {
         assertFalse(AllowedApps.isInAllowedList(""))
+    }
+
+    @Test
+    fun `policy-disabled app is removed from the allowed list`() {
+        // Camera app is in the allowed list by default...
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.cam"))
+        // ...but once the agent disables the camera, it must be hidden.
+        SayphAppPolicy.setDisabledPackagesForTesting(setOf("com.sayph.cam"))
+        assertFalse(AllowedApps.isInAllowedList("com.sayph.cam"))
+        assertFalse(AllowedApps.isInAllowedList("com.sayph.cam.debug"))
+    }
+
+    @Test
+    fun `disabling one app does not hide other allowed apps`() {
+        SayphAppPolicy.setDisabledPackagesForTesting(setOf("one.sayph.music"))
+        assertFalse(AllowedApps.isInAllowedList("one.sayph.music"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.cam"))
+        assertTrue(AllowedApps.isInAllowedList("org.fossify.notes"))
     }
 
     @Test
