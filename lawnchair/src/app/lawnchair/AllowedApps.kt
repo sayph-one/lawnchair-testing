@@ -16,6 +16,8 @@ object AllowedApps {
         "com.simplemobiletools.smsmessenger.debug",
         "com.sayph.messenger",
         "com.sayph.messenger.debug",
+        "com.sayph.phone",
+        "com.sayph.phone.debug",
         "org.fossify.notes",
         "org.fossify.notes.debug",
         "app.organicmaps",
