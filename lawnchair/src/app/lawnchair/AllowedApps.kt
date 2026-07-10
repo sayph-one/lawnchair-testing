@@ -18,6 +18,8 @@ object AllowedApps {
         "com.sayph.messenger.debug",
         "com.sayph.phone",
         "com.sayph.phone.debug",
+        "com.sayph.notes",
+        "com.sayph.notes.debug",
         "org.fossify.notes",
         "org.fossify.notes.debug",
         "app.organicmaps",
