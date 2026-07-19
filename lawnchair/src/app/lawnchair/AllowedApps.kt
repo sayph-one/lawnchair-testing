@@ -20,8 +20,6 @@ object AllowedApps {
         "com.sayph.phone.debug",
         "com.sayph.notes",
         "com.sayph.notes.debug",
-        "org.fossify.notes",
-        "org.fossify.notes.debug",
         "app.organicmaps",
         "app.organicmaps.debug",
         "one.sayph.music",

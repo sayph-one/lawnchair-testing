@@ -49,7 +49,7 @@ class SayphAppPolicyTest {
     fun `unrelated packages are not disabled`() {
         SayphAppPolicy.setDisabledPackagesForTesting(setOf("one.sayph.music"))
         assertFalse(SayphAppPolicy.isDisabled("com.sayph.cam"))
-        assertFalse(SayphAppPolicy.isDisabled("org.fossify.notes"))
+        assertFalse(SayphAppPolicy.isDisabled("com.sayph.notes"))
     }
 
     @Test
