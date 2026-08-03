@@ -17,7 +17,7 @@ class AllowedAppsTest {
     fun `exact match allowed packages are allowed`() {
         assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.dialer"))
         assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.smsmessenger"))
-        assertTrue(AllowedApps.isInAllowedList("org.fossify.notes"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.notes"))
         assertTrue(AllowedApps.isInAllowedList("app.organicmaps"))
         assertTrue(AllowedApps.isInAllowedList("com.sec.android.gallery3d"))
         assertTrue(AllowedApps.isInAllowedList("com.sec.android.app.camera"))
@@ -30,8 +30,14 @@ class AllowedAppsTest {
     fun `debug variants of allowed packages are allowed`() {
         assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.dialer.debug"))
         assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.smsmessenger.debug"))
-        assertTrue(AllowedApps.isInAllowedList("org.fossify.notes.debug"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.notes.debug"))
         assertTrue(AllowedApps.isInAllowedList("app.organicmaps.debug"))
+    }
+
+    @Test
+    fun `retired fossify notes app is no longer allowed`() {
+        assertFalse(AllowedApps.isInAllowedList("org.fossify.notes"))
+        assertFalse(AllowedApps.isInAllowedList("org.fossify.notes.debug"))
     }
 
     @Test
@@ -82,7 +88,7 @@ class AllowedAppsTest {
         SayphAppPolicy.setDisabledPackagesForTesting(setOf("one.sayph.music"))
         assertFalse(AllowedApps.isInAllowedList("one.sayph.music"))
         assertTrue(AllowedApps.isInAllowedList("com.sayph.cam"))
-        assertTrue(AllowedApps.isInAllowedList("org.fossify.notes"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.notes"))
     }
 
     @Test
