@@ -18,6 +18,7 @@ class AllowedAppsTest {
         assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.dialer"))
         assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.smsmessenger"))
         assertTrue(AllowedApps.isInAllowedList("com.sayph.notes"))
+        assertTrue(AllowedApps.isInAllowedList("one.sayph.settings"))
         assertTrue(AllowedApps.isInAllowedList("app.organicmaps"))
         assertTrue(AllowedApps.isInAllowedList("com.sec.android.gallery3d"))
         assertTrue(AllowedApps.isInAllowedList("com.sec.android.app.camera"))
@@ -31,6 +32,7 @@ class AllowedAppsTest {
         assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.dialer.debug"))
         assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.smsmessenger.debug"))
         assertTrue(AllowedApps.isInAllowedList("com.sayph.notes.debug"))
+        assertTrue(AllowedApps.isInAllowedList("one.sayph.settings.debug"))
         assertTrue(AllowedApps.isInAllowedList("app.organicmaps.debug"))
     }
 
