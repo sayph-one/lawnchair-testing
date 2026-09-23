@@ -38,6 +38,8 @@ object AllowedApps {
         "one.sayph.games.debug",
         "one.sayph.maps",
         "one.sayph.maps.debug",
+        "one.sayph.calendar",
+        "one.sayph.calendar.debug",
         "com.sayph.cam",
         "com.sayph.cam.debug",
         "com.sec.android.gallery3d",
