@@ -44,6 +44,10 @@ object AllowedApps {
         "one.sayph.browser.debug",
         "one.sayph.browser.prototype",
         "one.sayph.browser.prototype.debug",
+        // Launchpad, the approved-web-apps app that replaced the Browser prototype. Hidden
+        // until a parent turns it on (SayphAppPolicy), like Games.
+        "one.sayph.launchpad",
+        "one.sayph.launchpad.debug",
         "com.sayph.cam",
         "com.sayph.cam.debug",
         "com.sec.android.gallery3d",
