@@ -16,18 +16,18 @@ class RegistrationOverlayManagerTest {
         // Simulate registered state
         AllowedApps.setCachedRegistrationStatus(true)
 
-        assertTrue(AllowedApps.isAllowedCached("com.simplemobiletools.dialer"))
-        assertTrue(AllowedApps.isAllowedCached("com.sec.android.app.camera"))
-        assertTrue(AllowedApps.isAllowedCached("com.sec.android.daemonapp"))
+        assertTrue(AllowedApps.isAllowedCached("com.sayph.phone"))
+        assertTrue(AllowedApps.isAllowedCached("com.sayph.cam"))
+        assertTrue(AllowedApps.isAllowedCached("one.sayph.weather"))
     }
 
     @Test
     fun `all apps blocked when not registered`() {
         AllowedApps.setCachedRegistrationStatus(false)
 
-        assertFalse(AllowedApps.isAllowedCached("com.simplemobiletools.dialer"))
-        assertFalse(AllowedApps.isAllowedCached("com.sec.android.app.camera"))
-        assertFalse(AllowedApps.isAllowedCached("com.sec.android.daemonapp"))
+        assertFalse(AllowedApps.isAllowedCached("com.sayph.phone"))
+        assertFalse(AllowedApps.isAllowedCached("com.sayph.cam"))
+        assertFalse(AllowedApps.isAllowedCached("one.sayph.weather"))
     }
 
     @Test
@@ -50,12 +50,12 @@ class RegistrationOverlayManagerTest {
     @Test
     fun `registration state change toggles app visibility`() {
         AllowedApps.setCachedRegistrationStatus(true)
-        assertTrue(AllowedApps.isAllowedCached("com.simplemobiletools.dialer"))
+        assertTrue(AllowedApps.isAllowedCached("com.sayph.phone"))
 
         AllowedApps.setCachedRegistrationStatus(false)
-        assertFalse(AllowedApps.isAllowedCached("com.simplemobiletools.dialer"))
+        assertFalse(AllowedApps.isAllowedCached("com.sayph.phone"))
 
         AllowedApps.setCachedRegistrationStatus(true)
-        assertTrue(AllowedApps.isAllowedCached("com.simplemobiletools.dialer"))
+        assertTrue(AllowedApps.isAllowedCached("com.sayph.phone"))
     }
 }
