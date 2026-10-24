@@ -37,6 +37,9 @@ object SayphAppPolicy {
      * @param broadcastAction the action SayphAgent broadcasts when this policy changes, or `null`
      *   when the agent sends none (then changes apply on the launcher's next resume refresh).
      * @param isDisabled reads the policy's first cursor row and returns true when the group is off.
+     * @param hiddenUnlessEnabled when true the app is hidden unless the agent positively says it is
+     *   on: no row, no provider (an agent too old to know the policy) or a failed read all hide it,
+     *   and so does the launcher's start before the first refresh. For apps that are off by default.
      */
     data class PolicyGroup(
         val key: String,
@@ -44,13 +47,16 @@ object SayphAppPolicy {
         val providerPath: String,
         val broadcastAction: String?,
         val isDisabled: (Cursor) -> Boolean,
+        val hiddenUnlessEnabled: Boolean = false,
     )
 
     /**
      * The registry of gated apps. Add an entry here to gate a new app.
      *
-     * Policies fail-safe to *enabled* (app visible) when absent or unreadable, matching the agent's
-     * own evaluators — so an old agent or a query error never hides an app unexpectedly.
+     * Music and camera fail-safe to *enabled* (app visible) when absent or unreadable, matching the
+     * agent's own evaluators — so an old agent or a query error never hides them unexpectedly.
+     * Games and Launchpad are the opposite ([PolicyGroup.hiddenUnlessEnabled]): they are off by
+     * default for every family and only appear once a parent turns them on in the portal.
      */
     val groups = listOf(
         // Music: a single master on/off. enabled=0 => hide the music app.
@@ -78,10 +84,41 @@ object SayphAppPolicy {
                     c.getInt(c.getColumnIndexOrThrow("back_enabled")) == 0
             },
         ),
+        // Sayph Games: shown only when the agent's games_policy says enabled=1.
+        PolicyGroup(
+            key = "games",
+            packages = setOf("one.sayph.games"),
+            providerPath = "games_policy",
+            broadcastAction = "com.sayph.GAMES_SETTINGS_CHANGED",
+            isDisabled = { c -> c.getInt(c.getColumnIndexOrThrow("enabled")) != 1 },
+            hiddenUnlessEnabled = true,
+        ),
+        // Launchpad (approved web apps): shown only when launchpad_policy says enabled=1.
+        PolicyGroup(
+            key = "launchpad",
+            packages = setOf("one.sayph.launchpad"),
+            providerPath = "launchpad_policy",
+            broadcastAction = "com.sayph.LAUNCHPAD_SETTINGS_CHANGED",
+            isDisabled = { c -> c.getInt(c.getColumnIndexOrThrow("enabled")) != 1 },
+            hiddenUnlessEnabled = true,
+        ),
     )
 
+    /** Packages hidden before the agent has answered: the off-by-default groups. */
+    private fun hiddenByDefault(): Set<String> =
+        groups.filter { it.hiddenUnlessEnabled }.flatMapTo(mutableSetOf()) { it.packages }
+
+    /**
+     * Whether [group] is off, given what reading its policy produced: [readDisabled] is the
+     * group's own verdict on the first row, or null when there was no answer (no provider, no
+     * row, or the read failed). Pure, for tests.
+     */
+    @VisibleForTesting
+    fun groupDisabled(group: PolicyGroup, readDisabled: Boolean?): Boolean =
+        readDisabled ?: group.hiddenUnlessEnabled
+
     @Volatile
-    private var disabledPackages: Set<String> = emptySet()
+    private var disabledPackages: Set<String> = hiddenByDefault()
 
     /**
      * Re-read every policy from the agent and rebuild the disabled-packages cache. Safe to call off
@@ -91,16 +128,21 @@ object SayphAppPolicy {
     fun refresh(context: Context) {
         val disabled = mutableSetOf<String>()
         for (group in groups) {
-            try {
+            val verdict: Boolean? = try {
                 val uri = Uri.parse("content://$AUTHORITY/${group.providerPath}")
                 context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst() && group.isDisabled(cursor)) {
-                        disabled.addAll(group.packages)
-                    }
+                    if (cursor.moveToFirst()) group.isDisabled(cursor) else null
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to read ${group.providerPath}; treating '${group.key}' as enabled", e)
+                Log.w(
+                    TAG,
+                    "Failed to read ${group.providerPath}; treating '${group.key}' as " +
+                        if (group.hiddenUnlessEnabled) "disabled" else "enabled",
+                    e,
+                )
+                null
             }
+            if (groupDisabled(group, verdict)) disabled.addAll(group.packages)
         }
         disabledPackages = disabled
         Log.d(TAG, "Refreshed app policy. Disabled packages: $disabled")
