@@ -65,6 +65,8 @@ class AllowedAppsTest {
         assertFalse(AllowedApps.isInAllowedList("com.sec.android.app.popupcalculator"))
         // Samsung Weather — superseded by one.sayph.weather.
         assertFalse(AllowedApps.isInAllowedList("com.sec.android.daemonapp"))
+        // Samsung factory-test camera — never a user-facing app.
+        assertFalse(AllowedApps.isInAllowedList("com.sec.factory.camera"))
     }
 
     @Test

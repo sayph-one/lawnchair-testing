@@ -44,7 +44,6 @@ object AllowedApps {
         "one.sayph.launchpad.debug",
         "com.sayph.cam",
         "com.sayph.cam.debug",
-        "com.sec.factory.camera",
         "com.samsung.android.da.daagent"
     )
 
