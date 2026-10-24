@@ -10,18 +10,12 @@ import app.lawnchair.util.SayphDowntimeChecker
 
 object AllowedApps {
     private val allowedBasePackages = listOf(
-        "com.simplemobiletools.dialer",
-        "com.simplemobiletools.dialer.debug",
-        "com.simplemobiletools.smsmessenger",
-        "com.simplemobiletools.smsmessenger.debug",
         "com.sayph.messenger",
         "com.sayph.messenger.debug",
         "com.sayph.phone",
         "com.sayph.phone.debug",
         "com.sayph.notes",
         "com.sayph.notes.debug",
-        "app.organicmaps",
-        "app.organicmaps.debug",
         "one.sayph.music",
         "one.sayph.music.debug",
         "one.sayph.calculator",
@@ -49,15 +43,7 @@ object AllowedApps {
         "one.sayph.launchpad",
         "one.sayph.launchpad.debug",
         "com.sayph.cam",
-        "com.sayph.cam.debug",
-        "com.sec.android.gallery3d",
-        "com.sec.android.app.camera",
-        "com.sec.factory.camera",
-        "com.samsung.android.da.daagent",
-        "com.sec.android.app.clockpackage.ClockPackage",
-        "com.sec.android.app.popupcalculator",
-        "com.sec.android.app.clockpackage",
-        "com.sec.android.daemonapp"
+        "com.sayph.cam.debug"
     )
 
     private const val SAYPH_AGENT_PACKAGE = "com.sayph.sayphagent"
@@ -108,30 +94,6 @@ object AllowedApps {
      * This version uses a cached registration status to avoid requiring context
      */
     fun isAllowed(packageName: String): Boolean {
-        // Debug for messaging app (will catch .debug variant too)
-        if (packageName.contains("smsmessenger")) {
-            android.util.Log.e("AllowedApps", "=== MESSAGING APP DEBUG ===")
-            android.util.Log.e("AllowedApps", "Package: $packageName")
-            android.util.Log.e("AllowedApps", "Is Sayph Agent? ${packageName == SAYPH_AGENT_PACKAGE}")
-
-            val isRegistered = getRegistrationStatusFromCache()
-            android.util.Log.e("AllowedApps", "Is Registered (cached): $isRegistered")
-
-            val inList = isInAllowedList(packageName)
-            android.util.Log.e("AllowedApps", "Is in allowed list: $inList")
-
-            android.util.Log.e("AllowedApps", "Checking against base packages:")
-            allowedBasePackages.forEachIndexed { index, base ->
-                val exactMatch = packageName == base
-                val subMatch = packageName.startsWith("$base.") &&
-                    packageName.substring(base.length + 1).matches(Regex("^[a-zA-Z0-9._-]+$"))
-                android.util.Log.e("AllowedApps", "  [$index] $base - exact: $exactMatch, sub: $subMatch")
-            }
-
-            android.util.Log.e("AllowedApps", "Final result: ${isRegistered && inList}")
-            android.util.Log.e("AllowedApps", "=========================")
-        }
-
         // Never show Sayph Agent in app list
         if (packageName == SAYPH_AGENT_PACKAGE) return false
 

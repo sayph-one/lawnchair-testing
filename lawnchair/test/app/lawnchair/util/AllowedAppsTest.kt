@@ -15,31 +15,60 @@ class AllowedAppsTest {
 
     @Test
     fun `exact match allowed packages are allowed`() {
-        assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.dialer"))
-        assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.smsmessenger"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.phone"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.messenger"))
         assertTrue(AllowedApps.isInAllowedList("com.sayph.notes"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.cam"))
         assertTrue(AllowedApps.isInAllowedList("one.sayph.settings"))
-        assertTrue(AllowedApps.isInAllowedList("app.organicmaps"))
-        assertTrue(AllowedApps.isInAllowedList("com.sec.android.gallery3d"))
-        assertTrue(AllowedApps.isInAllowedList("com.sec.android.app.camera"))
-        assertTrue(AllowedApps.isInAllowedList("com.sec.android.app.clockpackage"))
-        assertTrue(AllowedApps.isInAllowedList("com.sec.android.app.popupcalculator"))
-        assertTrue(AllowedApps.isInAllowedList("com.sec.android.daemonapp"))
+        assertTrue(AllowedApps.isInAllowedList("one.sayph.music"))
+        assertTrue(AllowedApps.isInAllowedList("one.sayph.clock"))
+        assertTrue(AllowedApps.isInAllowedList("one.sayph.calculator"))
+        assertTrue(AllowedApps.isInAllowedList("one.sayph.weather"))
+        assertTrue(AllowedApps.isInAllowedList("one.sayph.gallery"))
     }
 
     @Test
     fun `debug variants of allowed packages are allowed`() {
-        assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.dialer.debug"))
-        assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.smsmessenger.debug"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.phone.debug"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.messenger.debug"))
         assertTrue(AllowedApps.isInAllowedList("com.sayph.notes.debug"))
         assertTrue(AllowedApps.isInAllowedList("one.sayph.settings.debug"))
-        assertTrue(AllowedApps.isInAllowedList("app.organicmaps.debug"))
+        assertTrue(AllowedApps.isInAllowedList("one.sayph.gallery.debug"))
     }
 
     @Test
     fun `retired fossify notes app is no longer allowed`() {
         assertFalse(AllowedApps.isInAllowedList("org.fossify.notes"))
         assertFalse(AllowedApps.isInAllowedList("org.fossify.notes.debug"))
+    }
+
+    @Test
+    fun `retired simple mobile tools apps are no longer allowed`() {
+        assertFalse(AllowedApps.isInAllowedList("com.simplemobiletools.dialer"))
+        assertFalse(AllowedApps.isInAllowedList("com.simplemobiletools.dialer.debug"))
+        assertFalse(AllowedApps.isInAllowedList("com.simplemobiletools.smsmessenger"))
+        assertFalse(AllowedApps.isInAllowedList("com.simplemobiletools.smsmessenger.debug"))
+    }
+
+    @Test
+    fun `retired organic maps app is no longer allowed`() {
+        assertFalse(AllowedApps.isInAllowedList("app.organicmaps"))
+        assertFalse(AllowedApps.isInAllowedList("app.organicmaps.debug"))
+    }
+
+    @Test
+    fun `retired samsung stock apps are no longer allowed`() {
+        assertFalse(AllowedApps.isInAllowedList("com.sec.android.gallery3d"))
+        assertFalse(AllowedApps.isInAllowedList("com.sec.android.app.camera"))
+        assertFalse(AllowedApps.isInAllowedList("com.sec.android.app.clockpackage"))
+        assertFalse(AllowedApps.isInAllowedList("com.sec.android.app.clockpackage.ClockPackage"))
+        assertFalse(AllowedApps.isInAllowedList("com.sec.android.app.popupcalculator"))
+        // Samsung Weather — superseded by one.sayph.weather.
+        assertFalse(AllowedApps.isInAllowedList("com.sec.android.daemonapp"))
+        // Samsung factory-test camera — never a user-facing app.
+        assertFalse(AllowedApps.isInAllowedList("com.sec.factory.camera"))
+        // Samsung Dual Messenger agent — clones messaging apps into a second user.
+        assertFalse(AllowedApps.isInAllowedList("com.samsung.android.da.daagent"))
     }
 
     @Test
@@ -59,15 +88,15 @@ class AllowedAppsTest {
     @Test
     fun `package prefix attacks are blocked`() {
         // A malicious package with an allowed prefix but different app
-        assertFalse(AllowedApps.isInAllowedList("com.simplemobiletools.dialermalware"))
-        assertFalse(AllowedApps.isInAllowedList("app.organicmapsfake"))
+        assertFalse(AllowedApps.isInAllowedList("com.sayph.phonemalware"))
+        assertFalse(AllowedApps.isInAllowedList("one.sayph.settingsfake"))
     }
 
     @Test
     fun `sub-packages of allowed apps are allowed`() {
         // Legitimate sub-packages (e.g. debug, beta variants)
-        assertTrue(AllowedApps.isInAllowedList("com.simplemobiletools.dialer.beta"))
-        assertTrue(AllowedApps.isInAllowedList("app.organicmaps.staging"))
+        assertTrue(AllowedApps.isInAllowedList("com.sayph.phone.beta"))
+        assertTrue(AllowedApps.isInAllowedList("one.sayph.settings.staging"))
     }
 
     @Test
@@ -96,8 +125,8 @@ class AllowedAppsTest {
     @Test
     fun `getAllowedPackages returns all base packages`() {
         val packages = AllowedApps.getAllowedPackages()
-        assertTrue(packages.contains("com.simplemobiletools.dialer"))
-        assertTrue(packages.contains("com.sec.android.daemonapp"))
+        assertTrue(packages.contains("com.sayph.phone"))
+        assertTrue(packages.contains("one.sayph.settings"))
         assertTrue(packages.size >= 10)
     }
 }
