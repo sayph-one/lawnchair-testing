@@ -63,6 +63,8 @@ class AllowedAppsTest {
         assertFalse(AllowedApps.isInAllowedList("com.sec.android.app.clockpackage"))
         assertFalse(AllowedApps.isInAllowedList("com.sec.android.app.clockpackage.ClockPackage"))
         assertFalse(AllowedApps.isInAllowedList("com.sec.android.app.popupcalculator"))
+        // Samsung Weather — superseded by one.sayph.weather.
+        assertFalse(AllowedApps.isInAllowedList("com.sec.android.daemonapp"))
     }
 
     @Test
