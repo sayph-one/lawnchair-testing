@@ -67,6 +67,8 @@ class AllowedAppsTest {
         assertFalse(AllowedApps.isInAllowedList("com.sec.android.daemonapp"))
         // Samsung factory-test camera — never a user-facing app.
         assertFalse(AllowedApps.isInAllowedList("com.sec.factory.camera"))
+        // Samsung Dual Messenger agent — clones messaging apps into a second user.
+        assertFalse(AllowedApps.isInAllowedList("com.samsung.android.da.daagent"))
     }
 
     @Test

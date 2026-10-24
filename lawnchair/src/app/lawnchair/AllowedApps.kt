@@ -43,8 +43,7 @@ object AllowedApps {
         "one.sayph.launchpad",
         "one.sayph.launchpad.debug",
         "com.sayph.cam",
-        "com.sayph.cam.debug",
-        "com.samsung.android.da.daagent"
+        "com.sayph.cam.debug"
     )
 
     private const val SAYPH_AGENT_PACKAGE = "com.sayph.sayphagent"
